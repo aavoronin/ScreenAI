@@ -1,4 +1,5 @@
 from project_to_file.project_to_file import project_to_file_main
+
 if __name__ == "__main__":
     project_to_file_main()
 
@@ -6,7 +7,7 @@ import os
 import sys
 import json
 import glob
-from PIL import Image
+from PIL import Image, ImageDraw, ImageFont
 import torch
 from llama_cpp import llama_supports_gpu_offload
 
@@ -23,7 +24,6 @@ if torch.cuda.is_available():
 else:
     print("⚠️ WARNING: CUDA is not available. Models will run on CPU.")
 print("=" * 60)
-
 
 # ==========================================
 # CONFIGURATION
@@ -51,7 +51,6 @@ from omniparser.util.utils import (
     get_caption_model_processor,
     get_som_labeled_img
 )
-
 
 # ==========================================
 # INITIALIZE MODELS
@@ -148,6 +147,52 @@ def parse_and_extract(image_path):
         json.dump(save_data, f, indent=4, ensure_ascii=False)
 
     print(f"  💾 Saved parsed data to: {output_file}")
+
+    # 5. Create 4x expanded image and draw bboxes
+    orig_width, orig_height = img.size
+    new_width = orig_width * 4
+    new_height = orig_height * 4
+
+    expanded_img = img.resize((new_width, new_height), Image.Resampling.LANCZOS)
+    draw = ImageDraw.Draw(expanded_img)
+
+    try:
+        font = ImageFont.truetype("arial.ttf", 16)
+    except IOError:
+        try:
+            font = ImageFont.truetype("DejaVuSans.ttf", 16)
+        except IOError:
+            font = ImageFont.load_default()
+
+    for el in parsed_content_list:
+        bbox = el.get('bbox', [])
+        if len(bbox) == 4:
+            x1, y1, x2, y2 = bbox
+            # Convert ratio to absolute coordinates on the 4x expanded image
+            abs_x1 = int(x1 * new_width)
+            abs_y1 = int(y1 * new_height)
+            abs_x2 = int(x2 * new_width)
+            abs_y2 = int(y2 * new_height)
+
+            # Draw bbox (linewidth 12 to meet "at least 12 pixels" requirement)
+            draw.rectangle([abs_x1, abs_y1, abs_x2, abs_y2], outline="red", width=12)
+
+            # Prepare text
+            el_type = str(el.get('type', '')).lower()
+            content = str(el.get('content', '')).strip()
+            label = f"{el_type}: {content}" if content else el_type
+
+            # Draw text background for readability
+            text_bbox = draw.textbbox((abs_x1, abs_y1), label, font=font)
+            draw.rectangle([text_bbox[0], text_bbox[1], text_bbox[2], text_bbox[3]], fill="black")
+
+            # Draw text in upper left corner
+            draw.text((abs_x1, abs_y1), label, fill="white", font=font)
+
+    # Save the expanded image
+    parsed_image_path = os.path.join(OUTPUT_DIR, f"{base_name}_parsed.png")
+    expanded_img.save(parsed_image_path)
+    print(f"  🖼️ Saved parsed image to: {parsed_image_path}")
 
 
 # ==========================================
