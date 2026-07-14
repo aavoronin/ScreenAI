@@ -90,6 +90,28 @@ class ScreenParser:
     def get_label_coordinates(self):
         return self._label_coordinates
 
+    def _draw_single_bbox(self, draw: ImageDraw.ImageDraw, bbox: list, label: str, font, new_width: int,
+                          new_height: int):
+        if len(bbox) == 4:
+            x1, y1, x2, y2 = bbox
+            abs_x1 = int(x1 * new_width)
+            abs_y1 = int(y1 * new_height)
+            abs_x2 = int(x2 * new_width)
+            abs_y2 = int(y2 * new_height)
+
+            draw.rectangle(
+                [abs_x1, abs_y1, abs_x2, abs_y2],
+                outline="red",
+                width=12
+            )
+
+            text_bbox = draw.textbbox((abs_x1, abs_y1), label, font=font)
+            draw.rectangle(
+                [text_bbox[0], text_bbox[1], text_bbox[2], text_bbox[3]],
+                fill="black"
+            )
+            draw.text((abs_x1, abs_y1), label, fill="white", font=font)
+
     def draw_parsed_image(self) -> Image.Image:
         if self._original_image is None or self._parsed_content_list is None:
             raise ValueError("No screen parsed yet. Call parse_screen first.")
@@ -112,34 +134,10 @@ class ScreenParser:
                 font = ImageFont.load_default()
 
         for el in self._parsed_content_list:
-            bbox = el.get('bbox', [])
-            if len(bbox) == 4:
-                x1, y1, x2, y2 = bbox
-                abs_x1 = int(x1 * new_width)
-                abs_y1 = int(y1 * new_height)
-                abs_x2 = int(x2 * new_width)
-                abs_y2 = int(y2 * new_height)
-
-                # Draw bbox with at least 12px width
-                draw.rectangle(
-                    [abs_x1, abs_y1, abs_x2, abs_y2],
-                    outline="red",
-                    width=12
-                )
-
-                el_type = str(el.get('type', '')).lower()
-                content = str(el.get('content', '')).strip()
-                label = f"{el_type}: {content}" if content else el_type
-
-                # Draw text background for readability
-                text_bbox = draw.textbbox((abs_x1, abs_y1), label, font=font)
-                draw.rectangle(
-                    [text_bbox[0], text_bbox[1], text_bbox[2], text_bbox[3]],
-                    fill="black"
-                )
-
-                # Draw text in upper left corner (font size 16 >= 12px requirement)
-                draw.text((abs_x1, abs_y1), label, fill="white", font=font)
+            el_type = str(el.get('type', '')).lower()
+            content = str(el.get('content', '')).strip()
+            label = f"{el_type}: {content}" if content else el_type
+            self._draw_single_bbox(draw, el.get('bbox', []), label, font, new_width, new_height)
 
         self._expanded_image = expanded_img
         return self._expanded_image

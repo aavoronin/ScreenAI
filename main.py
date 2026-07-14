@@ -1,8 +1,9 @@
+from Navigators.LinkedInNavigator import LinkedInNavigator
 from project_to_file.project_to_file import project_to_file_main
 import torch
 from llama_cpp import llama_supports_gpu_offload
 
-from Screen.TestScreenshots import test_screenshots
+from Screen.TestScreenshots import test_screenshots, OMNIPARSER_REPO_PATH
 
 
 def verify_gpu():
@@ -20,5 +21,7 @@ def verify_gpu():
 
 if __name__ == "__main__":
     project_to_file_main()
-    verify_gpu()
-    test_screenshots()
+    #verify_gpu()
+    #test_screenshots()
+    nv = LinkedInNavigator(OMNIPARSER_REPO_PATH)
+    nv.run()
