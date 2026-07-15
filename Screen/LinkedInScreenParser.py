@@ -31,10 +31,10 @@ class LinkedInScreenParser(ScreenParser):
                 w = x2 - x1
                 h = y2 - y1
 
-                if 'downward-pointing triangle' in content_lower:
+                if 'triangle_down' in content_lower:
                     if 0.25 <= cx <= 0.5 and 0.8 <= cy <= 0.95 and w <= 0.05 and h <= 0.05:
                         self._scroll_down_candidates.append(el)
-                        print(f"Found Scroll Down button: '{el.get('content')}' | BBox: {el.get('bbox')}")
+                        print(f"triangle_down button: '{el.get('content')}' | BBox: {el.get('bbox')}")
 
                 if 'next' in content_lower:
                     if 0.25 <= cx <= 0.5 and 0.6 <= cy <= 0.95:
