@@ -42,7 +42,7 @@ import re
 from torchvision.transforms import ToPILImage
 import supervision as sv
 import torchvision.transforms as T
-from util.box_annotator import BoxAnnotator 
+from util.box_annotator import BoxAnnotator
 
 
 def get_caption_model_processor(model_name, model_name_or_path="Salesforce/blip2-opt-2.7b", device=None):
@@ -233,20 +233,16 @@ def remove_overlap_new(boxes, iou_threshold, ocr_bbox=None):
     '''
     ocr_bbox format: [{'type': 'text', 'bbox':[x,y], 'interactivity':False, 'content':str }, ...]
     boxes format: [{'type': 'icon', 'bbox':[x,y], 'interactivity':True, 'content':None }, ...]
-
     '''
     assert ocr_bbox is None or isinstance(ocr_bbox, List)
-
     def box_area(box):
         return (box[2] - box[0]) * (box[3] - box[1])
-
     def intersection_area(box1, box2):
         x1 = max(box1[0], box2[0])
         y1 = max(box1[1], box2[1])
         x2 = min(box1[2], box2[2])
         y2 = min(box1[3], box2[3])
         return max(0, x2 - x1) * max(0, y2 - y1)
-
     def IoU(box1, box2):
         intersection = intersection_area(box1, box2)
         union = box_area(box1) + box_area(box2) - intersection + 1e-6
@@ -256,13 +252,11 @@ def remove_overlap_new(boxes, iou_threshold, ocr_bbox=None):
         else:
             ratio1, ratio2 = 0, 0
         return max(intersection / union, ratio1, ratio2)
-
     def is_inside(box1, box2):
         # return box1[0] >= box2[0] and box1[1] >= box2[1] and box1[2] <= box2[2] and box1[3] <= box2[3]
         intersection = intersection_area(box1, box2)
         ratio1 = intersection / box_area(box1)
         return ratio1 > 0.80
-
     # boxes = boxes.tolist()
     filtered_boxes = []
     if ocr_bbox:
@@ -286,15 +280,14 @@ def remove_overlap_new(boxes, iou_threshold, ocr_bbox=None):
                     if not box_added:
                         box3 = box3_elem['bbox']
                         if is_inside(box3, box1): # ocr inside icon
-                            # box_added = True
-                            # delete the box3_elem from ocr_bbox
-                            try:
-                                # gather all ocr labels
-                                ocr_labels += box3_elem['content'] + ' '
+                            # Only merge if the content is the same or similar
+                            # Check if this OCR text matches existing labels
+                            if not ocr_labels or box3_elem['content'].strip() == ocr_labels.strip():
+                                # gather all ocr labels with same content
+                                if not ocr_labels:
+                                    ocr_labels = box3_elem['content']
                                 filtered_boxes.remove(box3_elem)
-                            except:
-                                continue
-                            # break
+                            # If different content, don't merge - keep separate
                         elif is_inside(box1, box3): # icon inside ocr, don't added this icon box, no need to check other ocr bbox bc no overlap between ocr bbox, icon can only be in one ocr box
                             box_added = True
                             break
@@ -512,7 +505,7 @@ def check_ocr_box(image_source: Union[str, Image.Image], display_img = True, out
     w, h = image_source.size
     if use_paddleocr:
         if easyocr_args is None:
-            text_threshold = 0.5
+            text_threshold = 0.65
         else:
             text_threshold = easyocr_args['text_threshold']
         result = paddle_ocr.ocr(image_np, cls=False)[0]

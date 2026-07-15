@@ -1,6 +1,5 @@
 import os
 import sys
-import glob
 import cv2
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont
@@ -9,15 +8,12 @@ import torch
 # ==========================================
 # PATH CONFIGURATION
 # ==========================================
-# Get the project root directory (C:\Py\ScreenAI)
 current_dir = os.path.dirname(os.path.abspath(__file__))
 project_root = os.path.dirname(current_dir)
 
-# Add project root to sys.path to allow 'import omniparser'
 if project_root not in sys.path:
     sys.path.append(project_root)
 
-# Add omniparser directory to sys.path to satisfy internal imports
 omniparser_path = os.path.join(project_root, "omniparser")
 if omniparser_path not in sys.path:
     sys.path.append(omniparser_path)
@@ -38,27 +34,9 @@ class ScreenParser:
         self._original_image = None
         self._expanded_image = None
 
-        # --- Custom Symbol Recognition Setup ---
-        self._custom_templates = {}
-        custom_images_dir = os.path.join(project_root, "custom_images")
-        if os.path.exists(custom_images_dir):
-            print("🔄 Loading custom symbol templates...")
-            for folder_name in os.listdir(custom_images_dir):
-                folder_path = os.path.join(custom_images_dir, folder_name)
-                if os.path.isdir(folder_path):
-                    self._custom_templates[folder_name] = []
-                    for img_file in os.listdir(folder_path):
-                        img_path = os.path.join(folder_path, img_file)
-                        # Load as grayscale for better matching performance
-                        img = cv2.imread(img_path, cv2.IMREAD_GRAYSCALE)
-                        if img is not None:
-                            # Resize to 32x32 as requested
-                            img_resized = cv2.resize(img, (32, 32))
-                            self._custom_templates[folder_name].append(img_resized)
-            print(f"   Loaded {len(self._custom_templates)} symbol types.")
-        else:
-            print("⚠️ custom_images folder not found. Custom symbol detection disabled.")
-        # -------------------------------------
+        # Template matching for custom symbols
+        self.custom_templates = {}  # symbol_name -> list of template images
+        self._load_custom_templates()
 
         print("🔄 Loading YOLO model...")
         yolo_model_path = os.path.join(
@@ -75,54 +53,111 @@ class ScreenParser:
             model_name_or_path=caption_model_path
         )
 
+    def _load_custom_templates(self):
+        """Load custom symbol templates from custom_images folder."""
+        custom_images_path = os.path.join(project_root, "custom_images")
+
+        if not os.path.exists(custom_images_path):
+            print(f"⚠️ custom_images folder not found at: {custom_images_path}")
+            print(
+                "   Please create this folder and add subfolders (named after the symbol) containing .png/.jpg images.")
+            return
+
+        print("🔄 Loading custom symbol templates...")
+        symbol_count = 0
+
+        for item in os.listdir(custom_images_path):
+            symbol_path = os.path.join(custom_images_path, item)
+            if os.path.isdir(symbol_path):
+                templates = []
+                for img_file in os.listdir(symbol_path):
+                    # Added .webp to the supported extensions
+                    if img_file.lower().endswith(('.png', '.jpg', '.jpeg', '.webp')):
+                        img_path = os.path.join(symbol_path, img_file)
+                        # Load and convert to grayscale
+                        template = cv2.imread(img_path, cv2.IMREAD_GRAYSCALE)
+                        if template is not None:
+                            # Resize to 32x32 for consistency
+                            template = cv2.resize(template, (32, 32))
+                            templates.append(template)
+
+                if templates:
+                    self.custom_templates[item] = templates
+                    symbol_count += 1
+                    print(f"  ✓ Loaded {len(templates)} template(s) for '{item}'")
+                else:
+                    print(f"  ⚠️ No valid images (.png, .jpg, .jpeg) found in subfolder '{item}'")
+
+        if symbol_count == 0:
+            print(
+                "⚠️ Loaded 0 symbol types. Please ensure 'custom_images' contains subfolders with actual image files.")
+        else:
+            print(f"✅ Loaded {symbol_count} symbol type(s) in total.")
+
+    def _detect_custom_symbols(self, screenshot_np):
+        """Detect custom symbols in the screenshot using template matching."""
+        if not self.custom_templates:
+            return []
+
+        detected_symbols = []
+        # Convert screenshot to grayscale
+        if len(screenshot_np.shape) == 3:
+            screenshot_gray = cv2.cvtColor(screenshot_np, cv2.COLOR_RGB2GRAY)
+        else:
+            screenshot_gray = screenshot_np
+
+        screenshot_h, screenshot_w = screenshot_gray.shape
+
+        # Search for each custom symbol
+        for symbol_name, templates in self.custom_templates.items():
+            for template in templates:
+                template_h, template_w = template.shape
+                # Perform template matching
+                result = cv2.matchTemplate(screenshot_gray, template, cv2.TM_CCOEFF_NORMED)
+                threshold = 0.80  # 80% confidence
+                locations = np.where(result >= threshold)
+
+                # Group nearby detections to avoid duplicates
+                points = list(zip(*locations[::-1]))
+                used_points = set()
+
+                for pt in points:
+                    # Check if this point is too close to an already used point
+                    is_duplicate = False
+                    for used_pt in used_points:
+                        distance = np.sqrt((pt[0] - used_pt[0]) ** 2 + (pt[1] - used_pt[1]) ** 2)
+                        if distance < 10:  # Within 10 pixels
+                            is_duplicate = True
+                            break
+
+                    if not is_duplicate:
+                        used_points.add(pt)
+                        # Calculate normalized bounding box
+                        x1 = pt[0] / screenshot_w
+                        y1 = pt[1] / screenshot_h
+                        x2 = (pt[0] + template_w) / screenshot_w
+                        y2 = (pt[1] + template_h) / screenshot_h
+
+                        detected_symbols.append({
+                            'type': 'icon',
+                            'bbox': [x1, y1, x2, y2],
+                            'interactivity': True,
+                            'content': symbol_name,
+                            'source': 'template_match'
+                        })
+        return detected_symbols
+
     def cleanup(self):
         self._parsed_content_list = None
         self._label_coordinates = None
         self._original_image = None
         self._expanded_image = None
 
-    def _detect_custom_symbols(self):
-        """
-        Scans the current image for custom templates and appends matches
-        to self._parsed_content_list.
-        """
-        if not self._custom_templates or self._original_image is None:
-            return
-
-        # Convert PIL image to OpenCV format (Grayscale)
-        screen_np = np.array(self._original_image.convert('L'))
-        h, w = screen_np.shape
-
-        # We use a threshold of 0.8 (80% match confidence)
-        threshold = 0.8
-
-        for symbol_name, templates in self._custom_templates.items():
-            for template in templates:
-                # Perform template matching
-                res = cv2.matchTemplate(screen_np, template, cv2.TM_CCOEFF_NORMED)
-                loc = np.where(res >= threshold)
-
-                # Iterate through all matches
-                for pt in zip(*loc[::-1]):
-                    x1, y1 = pt
-                    # Template is 32x32
-                    x2, y2 = x1 + 32, y1 + 32
-
-                    # Normalize coordinates to 0.0 - 1.0 range for OmniParser compatibility
-                    norm_box = [x1 / w, y1 / h, x2 / w, y2 / h]
-
-                    # Add to the parsed list
-                    self._parsed_content_list.append({
-                        'type': 'icon',
-                        'bbox': norm_box,
-                        'content': symbol_name,
-                        'interactivity': True,
-                        'source': 'custom_template_match'
-                    })
-
     def parse_screen(self, image: Image.Image):
         self.cleanup()
         self._original_image = image.convert("RGB")
+        # Convert PIL Image to numpy array for template matching
+        screenshot_np = np.array(self._original_image)
 
         ocr_bbox_rslt, _ = check_ocr_box(
             self._original_image,
@@ -145,8 +180,12 @@ class ScreenParser:
             iou_threshold=0.9
         )
 
-        # Run custom symbol detection after standard parsing
-        self._detect_custom_symbols()
+        # Detect custom symbols using template matching
+        custom_symbols = self._detect_custom_symbols(screenshot_np)
+        if custom_symbols:
+            print(f" 🔍 Detected {len(custom_symbols)} custom symbol(s) via template matching")
+            # Add custom symbols to parsed content list
+            self._parsed_content_list.extend(custom_symbols)
 
         return self._parsed_content_list
 
