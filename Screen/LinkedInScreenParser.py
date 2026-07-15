@@ -3,7 +3,6 @@ import re
 from PIL import Image, ImageDraw, ImageFont
 from Screen.ScreenParser import ScreenParser
 
-
 def is_downward_triangle_svg(content):
     """
     Parses an SVG path string and checks if it represents a downward-pointing triangle.
@@ -12,31 +11,23 @@ def is_downward_triangle_svg(content):
     numbers = re.findall(r'[-+]?\d*\.?\d+', content)
     if len(numbers) != 6:  # A triangle has 3 points (x,y) -> 6 numbers
         return False
-
     x1, y1, x2, y2, x3, y3 = map(float, numbers)
     points = [(x1, y1), (x2, y2), (x3, y3)]
-
     # Find the bottom-most point (largest Y value in SVG coordinates)
     bottom_pt = max(points, key=lambda p: p[1])
     top_pts = [p for p in points if p != bottom_pt]
-
     if len(top_pts) != 2:
         return False
-
     # Check if the bottom point is horizontally centered between the top two points
     avg_top_x = (top_pts[0][0] + top_pts[1][0]) / 2
     width = abs(top_pts[0][0] - top_pts[1][0])
-
     # Allow some tolerance for centering (e.g., +/- 2 pixels)
     if abs(bottom_pt[0] - avg_top_x) > (width / 2 + 2.0):
         return False
-
     # Check if the bottom point is actually below the top points
     if bottom_pt[1] <= max(top_pts[0][1], top_pts[1][1]):
         return False
-
     return True
-
 
 class LinkedInScreenParser(ScreenParser):
     def __init__(self, omniparser_repo_path: str):
@@ -48,6 +39,10 @@ class LinkedInScreenParser(ScreenParser):
 
     def parse_screen(self, image: Image.Image):
         parsed_content_list = super().parse_screen(image)
+
+        print("All parsed elements from base class:")
+        for el in parsed_content_list:
+            print(f"  {el.get('type')}: {el.get('content')} | BBox: {el.get('bbox')}")
 
         # Clear them on each new parsing
         self._close_pairs = []
@@ -146,7 +141,7 @@ class LinkedInScreenParser(ScreenParser):
         return parsed_content_list
 
     def draw_parsed_image(self) -> Image.Image:
-        if self._original_image is None:
+        if self._original_image is None or self._parsed_content_list is None:
             raise ValueError("No screen parsed yet. Call parse_screen first.")
 
         orig_width, orig_height = self._original_image.size
@@ -166,59 +161,35 @@ class LinkedInScreenParser(ScreenParser):
             except IOError:
                 font = ImageFont.load_default()
 
-        # Draw Close pairs
+        # Draw all elements with red boxes
+        for el in self._parsed_content_list:
+            el_type = str(el.get('type', '')).lower()
+            content = str(el.get('content', '')).strip()
+            label = f"{el_type}: {content}" if content else el_type
+            self._draw_single_bbox(draw, el.get('bbox', []), label, font, new_width, new_height, outline_color="red")
+
+        # Helper to draw specific elements in blue
+        def draw_blue_element(el, label_prefix):
+            content = str(el.get('content', '')).strip()
+            label = f"{label_prefix}: {content}" if content else label_prefix
+            self._draw_single_bbox(draw, el.get('bbox', []), label, font, new_width, new_height, outline_color="blue")
+
+        # Draw close pairs
         for pair in self._close_pairs:
-            close_el = pair['close_button']
-            left_el = pair['left_button']
-            self._draw_single_bbox(
-                draw,
-                close_el.get('bbox', []),
-                f"Close: {close_el.get('content')}",
-                font,
-                new_width,
-                new_height
-            )
-            self._draw_single_bbox(
-                draw,
-                left_el.get('bbox', []),
-                f"Left: {left_el.get('content')}",
-                font,
-                new_width,
-                new_height
-            )
+            draw_blue_element(pair['close_button'], "Close")
+            draw_blue_element(pair['left_button'], "Left")
 
-        # Draw Next buttons
+        # Draw next buttons
         for next_el in self._next_buttons:
-            self._draw_single_bbox(
-                draw,
-                next_el.get('bbox', []),
-                f"Next: {next_el.get('content')}",
-                font,
-                new_width,
-                new_height
-            )
+            draw_blue_element(next_el, "Next")
 
-        # Draw LinkedIn Jobs buttons
+        # Draw LinkedIn buttons
         for li_el in self._linkedin_buttons:
-            self._draw_single_bbox(
-                draw,
-                li_el.get('bbox', []),
-                f"LinkedIn: {li_el.get('content')}",
-                font,
-                new_width,
-                new_height
-            )
+            draw_blue_element(li_el, "LinkedIn")
 
-        # Draw Scroll Down buttons
+        # Draw scroll down candidates
         for scroll_el in self._scroll_down_candidates:
-            self._draw_single_bbox(
-                draw,
-                scroll_el.get('bbox', []),
-                f"Scroll Down: {scroll_el.get('content')}",
-                font,
-                new_width,
-                new_height
-            )
+            draw_blue_element(scroll_el, "Scroll Down")
 
         self._expanded_image = expanded_img
         return self._expanded_image

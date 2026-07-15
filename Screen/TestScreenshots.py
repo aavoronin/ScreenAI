@@ -4,6 +4,7 @@ import json
 import glob
 from PIL import Image
 
+from Screen.LinkedInScreenParser import LinkedInScreenParser
 from Screen.ScreenParser import ScreenParser
 
 # ==========================================
@@ -32,7 +33,7 @@ def test_screenshots():
         print(f"✅ Found {len(png_files)} screenshots to process.\n")
 
         # Initialize the parser once
-        parser = ScreenParser(OMNIPARSER_REPO_PATH)
+        parser = LinkedInScreenParser(OMNIPARSER_REPO_PATH)
 
         for file_path in png_files:
             filename = os.path.basename(file_path)
