@@ -92,19 +92,27 @@ class LinkedInNavigator:
                     first_linkedin_bbox = linkedin_buttons[0]['bbox']
                     click_bbox_center(first_linkedin_bbox)
 
-                    # Wait 1 sec, click ctrl-c, wait 1 sec
-                    time.sleep(1)
+                    # Wait for Chrome to gain focus
+                    time.sleep(0.5)
+
+                    # Optional: If you need the URL from the address bar, click it first
+                    # pyautogui.click(x=960, y=50) # Example coordinate for Chrome address bar
+                    # time.sleep(0.2)
+                    # pyautogui.hotkey('ctrl', 'a') # Select all text in address bar
+                    # time.sleep(0.2)
+
+                    # Send Ctrl+C
                     pyautogui.hotkey('ctrl', 'c')
-                    time.sleep(1)
+                    time.sleep(0.5)  # Wait for clipboard to update
 
                     # Take text from clipboard
                     clipboard_text = pyperclip.paste().strip()
-                    print(f"  📋 Clipboard text: '{clipboard_text}'")
+                    print(f"   Clipboard text: '{clipboard_text}'")
 
                     if clipboard_text:
                         if clipboard_text not in processed_urls:
                             processed_urls.add(clipboard_text)
-                            self.process_cavancy(clipboard_text)
+                            self.process_vacancy(clipboard_text)
                             found_new_url_in_pass = True
                             print(f"  ✅ New URL added. Total unique URLs: {len(processed_urls)}")
                         else:
@@ -117,7 +125,7 @@ class LinkedInNavigator:
                     print("  ⚠️ No LinkedIn buttons detected. Skipping clipboard logic.")
 
             # Termination Condition 3: No new URLs found in this pass
-            if not found_new_url_in_pass:
+            if not found_new_url_in_pass and not next_buttons:
                 print("🛑 No new URLs found in this pass. Terminating logic.")
                 break
 
@@ -139,7 +147,7 @@ class LinkedInNavigator:
                 print(" No Next button and no Scroll Down button found. Terminating logic.")
                 break
 
-    def process_cavancy(self, url: str):
+    def process_vacancy(self, url: str):
         """
         Process the vacancy URL. Currently empty as requested.
         """
