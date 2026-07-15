@@ -49,14 +49,11 @@ class LinkedInScreenParser(ScreenParser):
     def parse_screen(self, image: Image.Image):
         parsed_content_list = super().parse_screen(image)
 
+        # Clear them on each new parsing
         self._close_pairs = []
         self._next_buttons = []
         self._linkedin_buttons = []
-
-        close_candidates = []
-        scroll_down_candidates = []
-        next_candidates = []
-        linkedin_candidates = []
+        self._scroll_down_candidates = []
 
         for el in parsed_content_list:
             content = str(el.get('content', '')).strip()
@@ -76,20 +73,17 @@ class LinkedInScreenParser(ScreenParser):
                 w = x2 - x1
                 h = y2 - y1
 
-                # 1. Check for Close button in specific area and size
-                if 'close' in content_lower:
-                    if 0.25 <= cx <= 0.5 and 0.3 <= cy <= 0.8 and w <= 0.05 and h <= 0.05:
-                        close_candidates.append(el)
-
-                # 1. Check for Close button in specific area and size
+                # 1. Check for Scroll Down button in specific area and size
                 if 'downward-pointing triangle' in content_lower:
                     if 0.25 <= cx <= 0.5 and 0.8 <= cy <= 0.95 and w <= 0.05 and h <= 0.05:
-                        scroll_down_candidates.append(el)
+                        self._scroll_down_candidates.append(el)
+                        print(f"Found Scroll Down button: '{el.get('content')}' | BBox: {el.get('bbox')}")
 
                 # 2. Check for Next button in specific area
                 if 'next' in content_lower:
                     if 0.25 <= cx <= 0.5 and 0.6 <= cy <= 0.95:
-                        next_candidates.append(el)
+                        self._next_buttons.append(el)
+                        print(f"Found Next button: '{el.get('content')}' | BBox: {el.get('bbox')}")
 
                 # 3. Check for LinkedIn jobs button in specific area
                 if ('linkedin' in content_lower):
@@ -97,62 +91,56 @@ class LinkedInScreenParser(ScreenParser):
                             and 'com' in content_lower
                             and 'search-results' in content_lower):
                         if 0.1 <= cx <= 0.9 and 0.05 <= cy <= 0.25:
-                            linkedin_candidates.append(el)
+                            self._linkedin_buttons.append(el)
+                            print(f"Found LinkedIn Jobs button: '{el.get('content')}' | BBox: {el.get('bbox')}")
 
         # Process Close buttons and find corresponding left partners
-        for close_el in close_candidates:
-            close_bbox = close_el.get('bbox', [])
-            close_x1, close_y1, close_x2, close_y2 = close_bbox
-            best_match = None
-            min_distance = float('inf')
+        for close_el in parsed_content_list:
+            content_lower = str(close_el.get('content', '')).strip().lower()
+            bbox = close_el.get('bbox', [])
+            if len(bbox) == 4 and 'close' in content_lower:
+                x1, y1, x2, y2 = bbox
+                cx = (x1 + x2) / 2.0
+                cy = (y1 + y2) / 2.0
+                w = x2 - x1
+                h = y2 - y1
+                if 0.25 <= cx <= 0.5 and 0.3 <= cy <= 0.8 and w <= 0.05 and h <= 0.05:
+                    close_x1, close_y1, close_x2, close_y2 = bbox
+                    best_match = None
+                    min_distance = float('inf')
 
-            for other_el in parsed_content_list:
-                if other_el is close_el:
-                    continue
+                    for other_el in parsed_content_list:
+                        if other_el is close_el:
+                            continue
 
-                other_content = str(other_el.get('content', '')).strip().lower()
-                # Ignore 'Horton Security' and continue search
-                if ('horton security' in other_content or
-                    'more options' in other_content or
-                    'shield' in other_content):
-                    continue
+                        other_content = str(other_el.get('content', '')).strip().lower()
+                        # Ignore 'Horton Security' and continue search
+                        if ('horton security' in other_content or
+                            'more options' in other_content or
+                            'shield' in other_content):
+                            continue
 
-                other_bbox = other_el.get('bbox', [])
-                if len(other_bbox) == 4:
-                    other_x1, other_y1, other_x2, other_y2 = other_bbox
+                        other_bbox = other_el.get('bbox', [])
+                        if len(other_bbox) == 4:
+                            other_x1, other_y1, other_x2, other_y2 = other_bbox
 
-                    # Check if it's to the left
-                    if other_x2 <= close_x1:
-                        # Check vertical overlap to ensure it's the corresponding button
-                        if not (other_y2 <= close_y1 or other_y1 >= close_y2):
-                            distance = close_x1 - other_x2
-                            if distance < min_distance:
-                                min_distance = distance
-                                best_match = other_el
+                            # Check if it's to the left
+                            if other_x2 <= close_x1:
+                                # Check vertical overlap to ensure it's the corresponding button
+                                if not (other_y2 <= close_y1 or other_y1 >= close_y2):
+                                    distance = close_x1 - other_x2
+                                    if distance < min_distance:
+                                        min_distance = distance
+                                        best_match = other_el
 
-            if best_match:
-                self._close_pairs.append({
-                    'close_button': close_el,
-                    'left_button': best_match
-                })
-                print(f"Found Close pair: Close='{close_el.get('content')}', Left='{best_match.get('content')}'")
-            else:
-                print(f"Found Close button but no valid left partner: '{close_el.get('content')}'")
-
-        # Process and print Next buttons
-        for next_el in next_candidates:
-            self._next_buttons.append(next_el)
-            print(f"Found Next button: '{next_el.get('content')}' | BBox: {next_el.get('bbox')}")
-
-        # Process and print LinkedIn buttons
-        for li_el in linkedin_candidates:
-            self._linkedin_buttons.append(li_el)
-            print(f"Found LinkedIn Jobs button: '{li_el.get('content')}' | BBox: {li_el.get('bbox')}")
-
-        # Process and print LinkedIn buttons
-        for li_el in scroll_down_candidates:
-            self._scroll_down_candidates.append(li_el)
-            print(f"Found Scroll Down Jobs button: '{li_el.get('content')}' | BBox: {li_el.get('bbox')}")
+                    if best_match:
+                        self._close_pairs.append({
+                            'close_button': close_el,
+                            'left_button': best_match
+                        })
+                        print(f"Found Close pair: Close='{close_el.get('content')}', Left='{best_match.get('content')}'")
+                    else:
+                        print(f"Found Close button but no valid left partner: '{close_el.get('content')}'")
 
         self._original_image = image
         return parsed_content_list
@@ -216,6 +204,17 @@ class LinkedInScreenParser(ScreenParser):
                 draw,
                 li_el.get('bbox', []),
                 f"LinkedIn: {li_el.get('content')}",
+                font,
+                new_width,
+                new_height
+            )
+
+        # Draw Scroll Down buttons
+        for scroll_el in self._scroll_down_candidates:
+            self._draw_single_bbox(
+                draw,
+                scroll_el.get('bbox', []),
+                f"Scroll Down: {scroll_el.get('content')}",
                 font,
                 new_width,
                 new_height
