@@ -2,7 +2,6 @@ import os
 from PIL import Image, ImageDraw, ImageFont
 from Screen.ScreenParser import ScreenParser
 
-
 class LinkedInScreenParser(ScreenParser):
     def __init__(self, omniparser_repo_path: str):
         super().__init__(omniparser_repo_path)
@@ -34,18 +33,18 @@ class LinkedInScreenParser(ScreenParser):
                 if 'triangle_down' in content_lower:
                     if 0.25 <= cx <= 0.5 and 0.8 <= cy <= 0.95 and w <= 0.05 and h <= 0.05:
                         self._scroll_down_candidates.append(el)
-                        print(f"triangle_down button: '{el.get('content')}' | BBox: {el.get('bbox')}")
+                        print(f"triangle_down button: '{el.get('content')}'| BBox: {el.get('bbox')}")
 
                 if 'next' in content_lower:
                     if 0.25 <= cx <= 0.5 and 0.6 <= cy <= 0.95:
                         self._next_buttons.append(el)
-                        print(f"Found Next button: '{el.get('content')}' | BBox: {el.get('bbox')}")
+                        print(f"Found Next button: '{el.get('content')}'| BBox: {el.get('bbox')}")
 
                 if ('linkedin' in content_lower):
                     if ('jobs' in content_lower and 'com' in content_lower and 'search-results' in content_lower):
                         if 0.1 <= cx <= 0.9 and 0.05 <= cy <= 0.25:
                             self._linkedin_buttons.append(el)
-                            print(f"Found LinkedIn Jobs button: '{el.get('content')}' | BBox: {el.get('bbox')}")
+                            print(f"Found LinkedIn Jobs button: '{el.get('content')}'| BBox: {el.get('bbox')}")
 
         for close_el in parsed_content_list:
             content_lower = str(close_el.get('content', '')).strip().lower()
@@ -65,8 +64,7 @@ class LinkedInScreenParser(ScreenParser):
                         if other_el is close_el:
                             continue
                         other_content = str(other_el.get('content', '')).strip().lower()
-                        if (
-                                'horton security' in other_content or 'more options' in other_content or 'shield' in other_content):
+                        if ('horton security' in other_content or 'more options' in other_content or 'shield' in other_content):
                             continue
                         other_bbox = other_el.get('bbox', [])
                         if len(other_bbox) == 4:
@@ -79,14 +77,21 @@ class LinkedInScreenParser(ScreenParser):
                                         best_match = other_el
 
                     if best_match:
-                        self._close_pairs.append({
-                            'close_button': close_el,
-                            'left_button': best_match
-                        })
-                        print(
-                            f"Found Close pair: Close='{close_el.get('content')}', Left='{best_match.get('content')}'")
+                        # 1. Skip pair if left button contains "applicant" or "premium"
+                        left_content = str(best_match.get('content', '')).strip().lower()
+                        if 'applicant' in left_content or 'premium' in left_content:
+                            print(f"Skipping Close pair because left button contains 'applicant' or 'premium': '{best_match.get('content')}'")
+                        else:
+                            self._close_pairs.append({
+                                'close_button': close_el,
+                                'left_button': best_match
+                            })
+                            print(f"Found Close pair: Close='{close_el.get('content')}', Left='{best_match.get('content')}'")
                     else:
                         print(f"Found Close button but no valid left partner: '{close_el.get('content')}'")
+
+        # 2. Sort close_pairs by the Y coordinate of the center of the close button bbox (ascending)
+        self._close_pairs.sort(key=lambda pair: (pair['close_button']['bbox'][1] + pair['close_button']['bbox'][3]) / 2.0)
 
         self._original_image = image
         return parsed_content_list
@@ -94,11 +99,9 @@ class LinkedInScreenParser(ScreenParser):
     def draw_parsed_image(self) -> Image.Image:
         if self._original_image is None or self._parsed_content_list is None:
             raise ValueError("No screen parsed yet. Call parse_screen first.")
-
         orig_width, orig_height = self._original_image.size
         new_width = orig_width * 4
         new_height = orig_height * 4
-
         expanded_img = self._original_image.resize(
             (new_width, new_height), Image.Resampling.LANCZOS
         )
@@ -115,17 +118,14 @@ class LinkedInScreenParser(ScreenParser):
         def draw_blue_element(el, label_prefix):
             content = str(el.get('content', '')).strip()
             label = f"{label_prefix}: {content}" if content else label_prefix
-            # Now this will work because outline_color is supported in the base class
             self._draw_single_bbox(draw, el.get('bbox', []), label, font, new_width, new_height, outline_color="blue")
 
-        # Draw all elements with red boxes
         for el in self._parsed_content_list:
             el_type = str(el.get('type', '')).lower()
             content = str(el.get('content', '')).strip()
             label = f"{el_type}: {content}" if content else el_type
             self._draw_single_bbox(draw, el.get('bbox', []), label, font, new_width, new_height, outline_color="red")
 
-        # Draw specific pairs with blue boxes
         for pair in self._close_pairs:
             draw_blue_element(pair['close_button'], "Close")
             draw_blue_element(pair['left_button'], "Left")
