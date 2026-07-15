@@ -3,6 +3,7 @@ import re
 from PIL import Image, ImageDraw, ImageFont
 from Screen.ScreenParser import ScreenParser
 
+
 def is_downward_triangle_svg(content):
     """
     Parses an SVG path string and checks if it represents a downward-pointing triangle.
@@ -11,23 +12,31 @@ def is_downward_triangle_svg(content):
     numbers = re.findall(r'[-+]?\d*\.?\d+', content)
     if len(numbers) != 6:  # A triangle has 3 points (x,y) -> 6 numbers
         return False
+
     x1, y1, x2, y2, x3, y3 = map(float, numbers)
     points = [(x1, y1), (x2, y2), (x3, y3)]
+
     # Find the bottom-most point (largest Y value in SVG coordinates)
     bottom_pt = max(points, key=lambda p: p[1])
     top_pts = [p for p in points if p != bottom_pt]
+
     if len(top_pts) != 2:
         return False
+
     # Check if the bottom point is horizontally centered between the top two points
     avg_top_x = (top_pts[0][0] + top_pts[1][0]) / 2
     width = abs(top_pts[0][0] - top_pts[1][0])
+
     # Allow some tolerance for centering (e.g., +/- 2 pixels)
     if abs(bottom_pt[0] - avg_top_x) > (width / 2 + 2.0):
         return False
+
     # Check if the bottom point is actually below the top points
     if bottom_pt[1] <= max(top_pts[0][1], top_pts[1][1]):
         return False
+
     return True
+
 
 class LinkedInScreenParser(ScreenParser):
     def __init__(self, omniparser_repo_path: str):
@@ -111,8 +120,8 @@ class LinkedInScreenParser(ScreenParser):
                         other_content = str(other_el.get('content', '')).strip().lower()
                         # Ignore 'Horton Security' and continue search
                         if ('horton security' in other_content or
-                            'more options' in other_content or
-                            'shield' in other_content):
+                                'more options' in other_content or
+                                'shield' in other_content):
                             continue
 
                         other_bbox = other_el.get('bbox', [])
@@ -133,7 +142,8 @@ class LinkedInScreenParser(ScreenParser):
                             'close_button': close_el,
                             'left_button': best_match
                         })
-                        print(f"Found Close pair: Close='{close_el.get('content')}', Left='{best_match.get('content')}'")
+                        print(
+                            f"Found Close pair: Close='{close_el.get('content')}', Left='{best_match.get('content')}'")
                     else:
                         print(f"Found Close button but no valid left partner: '{close_el.get('content')}'")
 
@@ -161,18 +171,18 @@ class LinkedInScreenParser(ScreenParser):
             except IOError:
                 font = ImageFont.load_default()
 
+        # Helper to draw specific elements in blue
+        def draw_blue_element(el, label_prefix):
+            content = str(el.get('content', '')).strip()
+            label = f"{label_prefix}: {content}" if content else label_prefix
+            self._draw_single_bbox(draw, el.get('bbox', []), label, font, new_width, new_height, outline_color="blue")
+
         # Draw all elements with red boxes
         for el in self._parsed_content_list:
             el_type = str(el.get('type', '')).lower()
             content = str(el.get('content', '')).strip()
             label = f"{el_type}: {content}" if content else el_type
             self._draw_single_bbox(draw, el.get('bbox', []), label, font, new_width, new_height, outline_color="red")
-
-        # Helper to draw specific elements in blue
-        def draw_blue_element(el, label_prefix):
-            content = str(el.get('content', '')).strip()
-            label = f"{label_prefix}: {content}" if content else label_prefix
-            self._draw_single_bbox(draw, el.get('bbox', []), label, font, new_width, new_height, outline_color="blue")
 
         # Draw close pairs
         for pair in self._close_pairs:
