@@ -22,6 +22,6 @@ def verify_gpu():
 if __name__ == "__main__":
     project_to_file_main()
     #verify_gpu()
-    test_screenshots()
+    #test_screenshots()
     nv = LinkedInNavigator(OMNIPARSER_REPO_PATH)
     nv.run()
