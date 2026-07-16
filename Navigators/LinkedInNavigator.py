@@ -190,7 +190,6 @@ class LinkedInNavigator:
         print(f"📝 Extracting plain text from {dest_file}...")
 
         # Open file and parse as MIME message to extract only the HTML part (prevents MultipartBoundary garbage)
-        import email
         with open(dest_file, 'r', encoding='utf-8', errors='ignore') as f:
             msg = email.message_from_file(f)
 
@@ -252,6 +251,16 @@ class LinkedInNavigator:
         # 5. Clean up excessive blank lines and spaces
         text = re.sub(r'\n{3,}', '\n\n', text)
         text = re.sub(r'[ \t]+', ' ', text)
+
+        # 6. Remove all text before "Get job alerts for this search"
+        start_marker = "Get job alerts for this search"
+        if start_marker in text:
+            text = text[text.index(start_marker) + len(start_marker):]
+
+        # 7. Remove all text after "Job search faster with Premium"
+        end_marker = "Job search faster with Premium"
+        if end_marker in text:
+            text = text[:text.index(end_marker)]
 
         return text.strip()
 
