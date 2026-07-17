@@ -1,6 +1,7 @@
 import os
 from pathlib import Path
 from charset_normalizer import from_path
+from cfg.cfg import Config
 
 
 def detect_and_read_file(file_path: Path) -> str:
@@ -32,6 +33,7 @@ def detect_and_read_file(file_path: Path) -> str:
         content = f.read()
         return content.replace('\r\n', '\n').replace('\r', '\n')
 
+
 PROMPT = """
 INPUT FORMAT:
 The input contains concatenated files delimited by:
@@ -56,9 +58,10 @@ CODING STANDARDS:
 6. Do NOT add "change log", "modified", or "TODO" comments. Comments must only explain logic, behavior, or business rules.
 7. Update imports, dependencies, or configuration if required by the changes.
 8. If requirements are ambiguous or conflicting, pause and ask for clarification instead of guessing.
-9. Do not add or delete empty lines in the places where code was not changed. 
-
+9. Do not add or delete empty lines in the places where code was not changed.
 """
+
+
 def concatenate_project_files(project_path, output_filename='combined_output.txt'):
     root = Path(project_path)
     output_path = root / output_filename
@@ -75,13 +78,13 @@ def concatenate_project_files(project_path, output_filename='combined_output.txt
         ".txt", ".rtf", ".odt", ".ods", ".odp", ".csv", ".xml",
         ".json", ".md", ".html", ".htm", ".epub", ".mobi"
     }
-    
+
     exclude_dirs = {'weights', '.idea', '__pycache__', '.venv',
                     '.git', 'premsql', "TestCases", "out"}
     exclude_extensions = {'.pyc', '.pyo', '.pyd', '.mhtml',
                           '.cmd', '.ipynb', '.ipynb_checkpoints',
                           '.ipynb_media', '.sh',
-            ".safetensors"} | set(IMAGE_EXTENSIONS) | set(DOCUMENT_EXTENSIONS)
+                          ".safetensors"} | set(IMAGE_EXTENSIONS) | set(DOCUMENT_EXTENSIONS)
     exclude_filenames = {'.env', '.DS_Store', output_filename, ".gitignore"}
     exclude_specific_paths = {'download/my_token.py', 'README.md', 'combined_output.txt'}
 
@@ -94,10 +97,8 @@ def concatenate_project_files(project_path, output_filename='combined_output.txt
 
             if any(part in exclude_dirs for part in path.parts):
                 continue
-
             if path.suffix in exclude_extensions:
                 continue
-
             if path.name in exclude_filenames:
                 continue
 
@@ -111,12 +112,13 @@ def concatenate_project_files(project_path, output_filename='combined_output.txt
                 outfile.write(content)
             except Exception as e:
                 outfile.write(f"\n[Error reading file: {e}]\n")
-            outfile.write(f"\n=====END {relative_path} =====\n\n")
+            outfile.write(f"\n=====END {relative_path} =====\n")
             print(relative_path)
 
 
 def project_to_file_main():
-    PROJECT_PATH = r'C:\Py\ScreenAI'
+    config = Config()
+    PROJECT_PATH = config.get_path('project_path')
     concatenate_project_files(PROJECT_PATH)
     print(f"Done: {PROJECT_PATH}\\combined_output.txt")
 

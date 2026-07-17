@@ -3,18 +3,17 @@ import sys
 import json
 import glob
 from PIL import Image
-
 from Screen.LinkedInScreenParser import LinkedInScreenParser
 from Screen.ScreenParser import ScreenParser
+from cfg.cfg import Config
 
 # ==========================================
 # CONFIGURATION
 # ==========================================
-INPUT_DIR = r"C:\Py\ScreenAI\screens"
-OUTPUT_DIR = r"C:\Py\ScreenAI\parsed screens"
-
-# IMPORTANT: Use lowercase 'omniparser' to exactly match your git clone command
-OMNIPARSER_REPO_PATH = r"C:\Py\ScreenAI\omniparser"
+config = Config()
+INPUT_DIR = config.get_path('input_dir')
+OUTPUT_DIR = config.get_path('output_dir')
+OMNIPARSER_REPO_PATH = config.get_path('omniparser_repo_path')
 
 
 def test_screenshots():
@@ -48,6 +47,7 @@ def test_screenshots():
             # Parse the screen
             print("  ⏳ Running OmniParser inference...")
             parser.parse_screen(img)
+
             parsed_content_list = parser.get_bboxes()
             label_coordinates = parser.get_label_coordinates()
 
@@ -90,6 +90,7 @@ def test_screenshots():
 
             with open(output_file, 'w', encoding='utf-8') as f:
                 json.dump(save_data, f, indent=4, ensure_ascii=False)
+
             print(f"  💾 Saved parsed data to: {output_file}")
 
             # Draw and save the expanded parsed image

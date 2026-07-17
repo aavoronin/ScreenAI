@@ -7,18 +7,25 @@ from PIL import ImageGrab
 from Screen.LinkedInScreenParser import LinkedInScreenParser
 from Navigators.BaseNavigator import BaseNavigator
 from Estimators.LinkedInVacancyEstimator import LinkedInVacancyEstimator
+from cfg.cfg import Config
 
 
 class LinkedInNavigator(BaseNavigator):
-    def __init__(self, omniparser_repo_path: str):
+    def __init__(self, omniparser_repo_path: str = None):
+        config = Config()
+        if omniparser_repo_path is None:
+            omniparser_repo_path = config.get_path('omniparser_repo_path')
+
         parser = LinkedInScreenParser(omniparser_repo_path)
-        output_dir = r"C:\Py\ScreenAI\parsed screens"
+        output_dir = config.get_path('output_dir')
         super().__init__(parser, output_dir)
 
         # Termination condition 1
         self.MAX_CLOSE_BUTTONS = 6
         self.MAX_SCROLL_DOWNS = 6
-        self.VACANCIES_LINKED_IN_OUTPUT_PATH = r'C:\Py\ScreenAI\out\LinkedIn\Vacancies'
+        self.VACANCIES_LINKED_IN_OUTPUT_PATH = config.get_path(
+            'vacancies_linkedin_output_path'
+        )
 
         # Estimator responsible for parsing saved MHTML files
         self.estimator = LinkedInVacancyEstimator()

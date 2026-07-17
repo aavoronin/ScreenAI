@@ -1,0 +1,9 @@
+{
+  "paths": {
+    "input_dir": "C:\\Py\\ScreenAI\\screens",
+    "output_dir": "C:\\Py\\ScreenAI\\parsed screens",
+    "omniparser_repo_path": "C:\\Py\\ScreenAI\\omniparser",
+    "vacancies_linkedin_output_path": "C:\\Py\\ScreenAI\\out\\LinkedIn\\Vacancies",
+    "project_path": "C:\\Py\\ScreenAI"
+  }
+}
