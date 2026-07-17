@@ -1,7 +1,6 @@
 import os
 import time
 import datetime
-import ctypes
 import re
 import email
 import pyautogui
@@ -9,13 +8,13 @@ import pyperclip
 from PIL import ImageGrab
 from Screen.LinkedInScreenParser import LinkedInScreenParser
 from bs4 import BeautifulSoup
+from Navigators.BaseNavigator import BaseNavigator
 
-
-class LinkedInNavigator:
+class LinkedInNavigator(BaseNavigator):
     def __init__(self, omniparser_repo_path: str):
-        self.parser = LinkedInScreenParser(omniparser_repo_path)
-        self.output_dir = r"C:\Py\ScreenAI\parsed screens"
-        os.makedirs(self.output_dir, exist_ok=True)
+        parser = LinkedInScreenParser(omniparser_repo_path)
+        output_dir = r"C:\Py\ScreenAI\parsed screens"
+        super().__init__(parser, output_dir)
 
         # Termination condition 1
         self.MAX_CLOSE_BUTTONS = 3
@@ -27,7 +26,6 @@ class LinkedInNavigator:
             # Wait for NumLock to be activated
             while not self._is_numlock_on():
                 time.sleep(0.5)
-
             print("NumLock is ON. Starting LinkedIn automation logic...")
             self._execute_linkedin_automation()
 
@@ -37,32 +35,12 @@ class LinkedInNavigator:
 
     def _execute_linkedin_automation(self):
         processed_urls = set()
-        screen_width, screen_height = pyautogui.size()
-
-        def get_pixel_center(bbox):
-            x1, y1, x2, y2 = bbox
-            cx = (x1 + x2) / 2.0
-            cy = (y1 + y2) / 2.0
-            return int(cx * screen_width), int(cy * screen_height)
-
-        def click_close_left_partner(close_bbox):
-            cx, cy = get_pixel_center(close_bbox)
-            # Move left 10% of screen width, ensure x > 0
-            click_x = max(1, int(cx - (screen_width * 0.10)))
-            click_y = cy
-            print(f"  🖱️ Clicking Close left partner at pixel coords: ({click_x}, {click_y})")
-            pyautogui.click(click_x, click_y)
-
-        def click_bbox_center(bbox):
-            x, y = get_pixel_center(bbox)
-            pyautogui.click(x, y)
 
         while True:
             # 1. Parse screen
-            print("\n Parsing screen...")
+            print("\nParsing screen...")
             screenshot = ImageGrab.grab()
             self.parser.parse_screen(screenshot)
-
             close_pairs = self.parser._close_pairs
             linkedin_buttons = self.parser._linkedin_buttons
             next_buttons = self.parser._next_buttons
@@ -80,12 +58,11 @@ class LinkedInNavigator:
             for pair in close_pairs:
                 if len(processed_urls) >= self.MAX_CLOSE_BUTTONS:
                     break
-
                 print(pair)
                 close_bbox = pair['close_button']['bbox']
 
                 # Click left 10% of the close button
-                click_close_left_partner(close_bbox)
+                self.click_close_left_partner(close_bbox)
 
                 # Wait 5 sec
                 time.sleep(5)
@@ -93,7 +70,7 @@ class LinkedInNavigator:
                 # Find first bbox in _linkedin_buttons
                 if linkedin_buttons:
                     first_linkedin_bbox = linkedin_buttons[0]['bbox']
-                    click_bbox_center(first_linkedin_bbox)
+                    self.click_bbox_center(first_linkedin_bbox)
 
                     # Wait for Chrome to gain focus
                     time.sleep(0.5)
@@ -113,29 +90,30 @@ class LinkedInNavigator:
                             found_new_url_in_pass = True
                             print(f" ✅ New URL added. Total unique URLs: {len(processed_urls)}")
                         else:
-                            print(f" ️ URL already processed. Skipping.")
-                            # Continue loop to next close button
-                            continue
+                            print(f" ⚠️ URL already processed. Skipping.")
                     else:
                         print(" ⚠️ Clipboard text is empty. Doing nothing.")
                 else:
-                    print(" ️ No LinkedIn buttons detected. Skipping clipboard logic.")
+                    print(" ⚠️ No LinkedIn buttons detected. Skipping clipboard logic.")
+
+                # Continue loop to next close button
+                continue
 
             # Termination Condition 3: No new URLs found in this pass
-            if not found_new_url_in_pass:
+            if not found_new_url_in_pass and not next_buttons:
                 print("🛑 No new URLs found in this pass. Terminating logic.")
                 break
 
             # 3. Check Next button or Scroll Down button
             if next_buttons:
                 print("➡️ Next button detected. Clicking and waiting 20s...")
-                click_bbox_center(next_buttons[0]['bbox'])
+                self.click_bbox_center(next_buttons[0]['bbox'])
                 time.sleep(20)
                 # Loop continues, which will parse screen again
             elif scroll_downs:
                 print(f"️ Scroll down (triangle_down) detected. Clicking {self.MAX_SCROLL_DOWNS} times...")
                 for _ in range(self.MAX_SCROLL_DOWNS):
-                    click_bbox_center(scroll_downs[0]['bbox'])
+                    self.click_bbox_center(scroll_downs[0]['bbox'])
                     time.sleep(0.3)  # small pause between clicks
                 # Loop continues, which will parse screen again
             else:
@@ -185,6 +163,7 @@ class LinkedInNavigator:
 
             # 9. Wait 10 secs for the file to finish saving
             time.sleep(10)
+
             print(f"✅ Successfully saved MHTML: {dest_file}")
 
         print(f"📝 Extracting plain text from {dest_file}...")
@@ -201,7 +180,7 @@ class LinkedInNavigator:
                     payload = part.get_payload(decode=True)
                     if payload:
                         html_content = payload.decode(charset, errors='ignore')
-                        break
+                    break
         else:
             charset = msg.get_content_charset() or 'utf-8'
             payload = msg.get_payload(decode=True)
@@ -233,6 +212,7 @@ class LinkedInNavigator:
         # 2. Remove explicitly hidden elements
         for tag in soup.find_all(style=re.compile(r'display\s*:\s*none', re.I)):
             tag.decompose()
+
         for tag in soup.find_all(hidden=True):
             tag.decompose()
 
@@ -249,7 +229,7 @@ class LinkedInNavigator:
         text = soup.get_text(separator='\n', strip=True)
 
         # 5. Clean up excessive blank lines and spaces
-        text = re.sub(r'\n{3,}', '\n\n', text)
+        text = re.sub(r'\n{3,}', '\n', text)
         text = re.sub(r'[ \t]+', ' ', text)
 
         # 6. Remove all text before "Get job alerts for this search"
@@ -264,8 +244,5 @@ class LinkedInNavigator:
 
         return text.strip()
 
-    def _is_numlock_on(self):
-        return bool(ctypes.windll.user32.GetKeyState(0x90) & 1)
-
-    def _toggle_numlock(self):
-        pyautogui.press('numlock')
+    def analyze_collected(self):
+        pass

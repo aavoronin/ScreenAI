@@ -25,3 +25,4 @@ if __name__ == "__main__":
     #test_screenshots()
     nv = LinkedInNavigator(OMNIPARSER_REPO_PATH)
     nv.run()
+    nv.analyze_collected()
