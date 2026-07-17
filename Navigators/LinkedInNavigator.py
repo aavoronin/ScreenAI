@@ -62,7 +62,7 @@ class LinkedInNavigator(BaseNavigator):
                 close_bbox = pair['close_button']['bbox']
 
                 # Click left 10% of the close button
-                self.click_close_left_partner(close_bbox)
+                self.click_area_near_bbox(close_bbox, dx=-0.1, dy=0.0)
 
                 # Wait 5 sec
                 time.sleep(5)

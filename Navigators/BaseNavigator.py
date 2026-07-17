@@ -15,11 +15,11 @@ class BaseNavigator:
         cy = (y1 + y2) / 2.0
         return int(cx * self.screen_width), int(cy * self.screen_height)
 
-    def click_close_left_partner(self, close_bbox):
-        cx, cy = self.get_pixel_center(close_bbox)
-        # Move left 10% of screen width, ensure x > 0
-        click_x = max(1, int(cx - (self.screen_width * 0.10)))
-        click_y = cy
+    def click_area_near_bbox(self, bbox, dx, dy):
+        cx, cy = self.get_pixel_center(bbox)
+        # Shift by dx and dy ratios of screen dimensions, ensure x > 0
+        click_x = max(1, int(cx + (dx * self.screen_width)))
+        click_y = int(cy + (dy * self.screen_height))
         print(f"  🖱️ Clicking Close left partner at pixel coords: ({click_x}, {click_y})")
         pyautogui.click(click_x, click_y)
 
