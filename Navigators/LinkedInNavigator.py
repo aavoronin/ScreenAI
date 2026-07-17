@@ -1,14 +1,13 @@
 import os
 import time
-import datetime
 import re
-import email
 import pyautogui
 import pyperclip
 from PIL import ImageGrab
 from Screen.LinkedInScreenParser import LinkedInScreenParser
-from bs4 import BeautifulSoup
 from Navigators.BaseNavigator import BaseNavigator
+from Estimators.LinkedInVacancyEstimator import LinkedInVacancyEstimator
+
 
 class LinkedInNavigator(BaseNavigator):
     def __init__(self, omniparser_repo_path: str):
@@ -17,8 +16,12 @@ class LinkedInNavigator(BaseNavigator):
         super().__init__(parser, output_dir)
 
         # Termination condition 1
-        self.MAX_CLOSE_BUTTONS = 3
+        self.MAX_CLOSE_BUTTONS = 6
         self.MAX_SCROLL_DOWNS = 6
+        self.VACANCIES_LINKED_IN_OUTPUT_PATH = r'C:\Py\ScreenAI\out\LinkedIn\Vacancies'
+
+        # Estimator responsible for parsing saved MHTML files
+        self.estimator = LinkedInVacancyEstimator()
 
     def run(self):
         print("Waiting for NumLock to be ON...")
@@ -123,8 +126,9 @@ class LinkedInNavigator(BaseNavigator):
 
     def process_vacancy(self, url: str):
         """
-        Process the vacancy URL: extract job ID, save as .mhtml, then extract
-        plain text (retaining apply links as URLs) and save as .txt.
+        Process the vacancy URL: extract job ID, save the current
+        browser page as MHTML, then hand it over to the estimator
+        for parsing / scoring.
         """
         # 1. Parse URL and extract job_id
         match = re.search(r'currentJobId=(\d+)', url)
@@ -135,9 +139,10 @@ class LinkedInNavigator(BaseNavigator):
         job_id = match.group(1)
 
         # 2. Create destination file path
-        VACANCIES_LINKED_IN_OUTPUT_PATH = r'C:\Py\ScreenAI\out\LinkedIn\Vacancies'
-        dest_file = os.path.join(VACANCIES_LINKED_IN_OUTPUT_PATH, f'LinkedIn_Vacancy_{job_id}.mhtml')
-        txt_file = os.path.splitext(dest_file)[0] + '.txt'
+        dest_file = os.path.join(
+            self.VACANCIES_LINKED_IN_OUTPUT_PATH,
+            f'LinkedIn_Vacancy_{job_id}.mhtml'
+        )
 
         # 3. Make folders if they do not exist
         os.makedirs(os.path.dirname(dest_file), exist_ok=True)
@@ -146,103 +151,11 @@ class LinkedInNavigator(BaseNavigator):
         if os.path.exists(dest_file):
             print(f"✅ MHTML file already exists: {dest_file}")
         else:
-            print(f"💾 Saving vacancy {job_id} to: {dest_file}")
+            # Delegate the actual Ctrl+S / typing / Enter to the base class
+            self.save_browser_page_as_mhtml(dest_file)
 
-            # 5. Click ctrl-s
-            pyautogui.hotkey('ctrl', 's')
-
-            # 6. Wait 10 secs for Save dialog to appear
-            time.sleep(10)
-
-            # 7. Type full file name (using clipboard + ctrl+v is much more reliable)
-            pyperclip.copy(dest_file)
-            pyautogui.hotkey('ctrl', 'v')
-
-            # 8. Click enter
-            pyautogui.press('enter')
-
-            # 9. Wait 10 secs for the file to finish saving
-            time.sleep(10)
-
-            print(f"✅ Successfully saved MHTML: {dest_file}")
-
-        print(f"📝 Extracting plain text from {dest_file}...")
-
-        # Open file and parse as MIME message to extract only the HTML part (prevents MultipartBoundary garbage)
-        with open(dest_file, 'r', encoding='utf-8', errors='ignore') as f:
-            msg = email.message_from_file(f)
-
-        html_content = ""
-        if msg.is_multipart():
-            for part in msg.walk():
-                if part.get_content_type() == "text/html":
-                    charset = part.get_content_charset() or 'utf-8'
-                    payload = part.get_payload(decode=True)
-                    if payload:
-                        html_content = payload.decode(charset, errors='ignore')
-                    break
-        else:
-            charset = msg.get_content_charset() or 'utf-8'
-            payload = msg.get_payload(decode=True)
-            if payload:
-                html_content = payload.decode(charset, errors='ignore')
-            else:
-                html_content = msg.get_payload()
-
-        # Parse and format using BeautifulSoup (strips tags, keeps apply links as URLs)
-        text = self.html_to_formatted_text(html_content)
-
-        # Save resulting text to .txt file
-        with open(txt_file, 'w', encoding='utf-8') as f:
-            f.write(text)
-
-        print(f"✅ Successfully saved text to: {txt_file}")
-
-    def html_to_formatted_text(self, html_content: str) -> str:
-        """
-        Strips HTML tags, removes scripts/styles, and extracts only visible plain text.
-        Retains apply/job links as URLs.
-        """
-        soup = BeautifulSoup(html_content, 'html.parser')
-
-        # 1. Remove invisible content: scripts, styles, svg, etc.
-        for tag in soup.find_all(['script', 'style', 'noscript', 'svg', 'link', 'meta']):
-            tag.decompose()
-
-        # 2. Remove explicitly hidden elements
-        for tag in soup.find_all(style=re.compile(r'display\s*:\s*none', re.I)):
-            tag.decompose()
-
-        for tag in soup.find_all(hidden=True):
-            tag.decompose()
-
-        # 3. Retain apply/job links as "Text URL"
-        for a in soup.find_all('a'):
-            href = a.get('href', '')
-            text = a.get_text(strip=True)
-            if href and ('apply' in href.lower() or 'job' in href.lower()):
-                a.replace_with(f"{text} {href}" if text else href)
-            else:
-                a.replace_with(text)
-
-        # 4. Extract all visible text
-        text = soup.get_text(separator='\n', strip=True)
-
-        # 5. Clean up excessive blank lines and spaces
-        text = re.sub(r'\n{3,}', '\n', text)
-        text = re.sub(r'[ \t]+', ' ', text)
-
-        # 6. Remove all text before "Get job alerts for this search"
-        start_marker = "Get job alerts for this search"
-        if start_marker in text:
-            text = text[text.index(start_marker) + len(start_marker):]
-
-        # 7. Remove all text after "Job search faster with Premium"
-        end_marker = "Job search faster with Premium"
-        if end_marker in text:
-            text = text[:text.index(end_marker)]
-
-        return text.strip()
+        # 5. Let the estimator handle parsing / config / scoring
+        self.estimator.estimate(dest_file)
 
     def analyze_collected(self):
         pass
