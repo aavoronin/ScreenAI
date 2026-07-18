@@ -1,17 +1,19 @@
 import os
 import re
+import glob
 from datetime import datetime
 from bs4 import BeautifulSoup
 from Estimators.BaseVacancyEstimator import BaseVacancyEstimator
+from cfg.cfg import Config
 
 
 class LinkedInVacancyEstimator(BaseVacancyEstimator):
     """
     Estimator specialized for LinkedIn vacancy MHTML files.
     Knows how to:
-      - Parse the filename to extract vacancy type and job ID
-      - Apply LinkedIn-specific HTML cleaning rules
-      - Manage the per-vacancy JSON config
+    - Parse the filename to extract vacancy type and job ID
+    - Apply LinkedIn-specific HTML cleaning rules
+    - Manage the per-vacancy JSON config
     """
 
     def __init__(self):
@@ -84,9 +86,9 @@ class LinkedInVacancyEstimator(BaseVacancyEstimator):
         Estimate a LinkedIn vacancy from its MHTML file.
 
         Logic:
-          - If JSON config doesn't exist -> full parsing
-          - If JSON exists and parsing_version == PARSING_VERSION -> skip
-          - Otherwise -> full parsing
+        - If JSON config doesn't exist -> full parsing
+        - If JSON exists and parsing_version == PARSING_VERSION -> skip
+        - Otherwise -> full parsing
         After parsing, parsed_date and parsing_version are updated,
         and vacancy_score is set to 0.
         """
@@ -133,3 +135,33 @@ class LinkedInVacancyEstimator(BaseVacancyEstimator):
         self.save_config(json_path, config)
 
         print(f"✅ Completed parsing for job ID: {job_id}")
+
+    # ------------------------------------------------------------------
+    # Batch estimation
+    # ------------------------------------------------------------------
+    def estimate_vacancies(self):
+        """
+        Scan all mhtml files in vacancies_linkedin_output_path
+        and apply estimate method to each of them.
+        """
+        config = Config()
+        vacancies_dir = config.get_path('vacancies_linkedin_output_path')
+
+        if not os.path.exists(vacancies_dir):
+            print(f"⚠️ Vacancies directory does not exist: {vacancies_dir}")
+            return
+
+        mhtml_files = glob.glob(os.path.join(vacancies_dir, '*.mhtml'))
+
+        if not mhtml_files:
+            print(f"ℹ️ No .mhtml files found in {vacancies_dir}")
+            return
+
+        print(f"🔍 Found {len(mhtml_files)} .mhtml file(s) to estimate.")
+
+        for i, mhtml_path in enumerate(mhtml_files):
+            if i % 10 == 0:
+                print(f"{i:<6} files estimated")
+            self.estimate(mhtml_path)
+
+        print("✅ Finished estimating all vacancies.")

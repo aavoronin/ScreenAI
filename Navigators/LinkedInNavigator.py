@@ -165,4 +165,4 @@ class LinkedInNavigator(BaseNavigator):
         self.estimator.estimate(dest_file)
 
     def analyze_collected(self):
-        pass
+        self.estimator.estimate_vacancies()
