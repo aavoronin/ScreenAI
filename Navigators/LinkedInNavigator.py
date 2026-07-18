@@ -1,6 +1,7 @@
 import os
 import time
 import re
+import subprocess
 import pyautogui
 import pyperclip
 from PIL import ImageGrab
@@ -15,18 +16,15 @@ class LinkedInNavigator(BaseNavigator):
         config = Config()
         if omniparser_repo_path is None:
             omniparser_repo_path = config.get_path('omniparser_repo_path')
-
         parser = LinkedInScreenParser(omniparser_repo_path)
         output_dir = config.get_path('output_dir')
         super().__init__(parser, output_dir)
-
         # Termination condition 1
         self.MAX_CLOSE_BUTTONS = 6
         self.MAX_SCROLL_DOWNS = 6
         self.VACANCIES_LINKED_IN_OUTPUT_PATH = config.get_path(
             'vacancies_linkedin_output_path'
         )
-
         # Estimator responsible for parsing saved MHTML files
         self.estimator = LinkedInVacancyEstimator()
 
@@ -43,9 +41,57 @@ class LinkedInNavigator(BaseNavigator):
             self._toggle_numlock()
             print("NumLock toggled OFF. Waiting for next activation...")
 
+    def run_on_urls(self, urls_file_path: str = r"C:\Py\ScreenAI\Navigators\linkedin_urls.csv"):
+        """
+        Load URLs from a file, open each in Google Chrome, wait 30 seconds,
+        and then run the LinkedIn automation logic.
+        Stops after processing all URLs.
+        """
+        if not os.path.exists(urls_file_path):
+            print(f"⚠️ URLs file not found: {urls_file_path}")
+            return
+
+        with open(urls_file_path, 'r', encoding='utf-8') as f:
+            urls = [line.strip() for line in f if line.strip()]
+
+        if not urls:
+            print("⚠️ No URLs found in the file.")
+            return
+
+        print(f"🔍 Found {len(urls)} URLs to process.")
+
+        for i, url in enumerate(urls):
+            print(f"🌐 [{i + 1}/{len(urls)}] Processing URL: {url}")
+
+            # Execute Google Chrome with this URL
+            chrome_paths = [
+                r"C:\Program Files\Google\Chrome\Application\chrome.exe",
+                #r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe"
+            ]
+            chrome_executable = None
+            for path in chrome_paths:
+                if os.path.exists(path):
+                    chrome_executable = path
+                    break
+
+            if chrome_executable:
+                subprocess.Popen([chrome_executable, url])
+            else:
+                # Fallback to default browser on Windows
+                os.startfile(url)
+
+            # Wait 30 seconds
+            print("⏳ Waiting 30 seconds for the page to load...")
+            time.sleep(30)
+
+            # Run the automation logic
+            print("🤖 Starting LinkedIn automation logic for this URL...")
+            self._execute_linkedin_automation()
+
+        print("✅ Finished processing all URLs.")
+
     def _execute_linkedin_automation(self):
         processed_urls = set()
-
         while True:
             # 1. Parse screen
             print("\nParsing screen...")
@@ -62,7 +108,6 @@ class LinkedInNavigator(BaseNavigator):
                 break
 
             found_new_url_in_pass = False
-
             # 2. Loop through close buttons
             print(f"🔄 Processing {len(close_pairs)} close buttons...")
             for pair in close_pairs:
@@ -70,29 +115,22 @@ class LinkedInNavigator(BaseNavigator):
                     break
                 print(pair)
                 close_bbox = pair['close_button']['bbox']
-
                 # Click left 10% of the close button
                 self.click_area_near_bbox(close_bbox, dx=-0.1, dy=0.0)
-
                 # Wait 5 sec
                 time.sleep(5)
-
                 # Find first bbox in _linkedin_buttons
                 if linkedin_buttons:
                     first_linkedin_bbox = linkedin_buttons[0]['bbox']
                     self.click_bbox_center(first_linkedin_bbox)
-
                     # Wait for Chrome to gain focus
                     time.sleep(0.5)
-
                     # Send Ctrl+C
                     pyautogui.hotkey('ctrl', 'c')
                     time.sleep(0.5)  # Wait for clipboard to update
-
                     # Take text from clipboard
                     clipboard_text = pyperclip.paste().strip()
                     print(f" 📋 Clipboard text: '{clipboard_text}'")
-
                     if clipboard_text:
                         if clipboard_text not in processed_urls:
                             processed_urls.add(clipboard_text)
@@ -105,7 +143,6 @@ class LinkedInNavigator(BaseNavigator):
                         print(" ⚠️ Clipboard text is empty. Doing nothing.")
                 else:
                     print(" ⚠️ No LinkedIn buttons detected. Skipping clipboard logic.")
-
                 # Continue loop to next close button
                 continue
 
@@ -142,25 +179,20 @@ class LinkedInNavigator(BaseNavigator):
         if not match:
             print(f"⚠️ Could not extract currentJobId from URL: {url}")
             return
-
         job_id = match.group(1)
-
         # 2. Create destination file path
         dest_file = os.path.join(
             self.VACANCIES_LINKED_IN_OUTPUT_PATH,
             f'LinkedIn_Vacancy_{job_id}.mhtml'
         )
-
         # 3. Make folders if they do not exist
         os.makedirs(os.path.dirname(dest_file), exist_ok=True)
-
         # 4. Check if file already exists.
         if os.path.exists(dest_file):
             print(f"✅ MHTML file already exists: {dest_file}")
         else:
             # Delegate the actual Ctrl+S / typing / Enter to the base class
             self.save_browser_page_as_mhtml(dest_file)
-
         # 5. Let the estimator handle parsing / config / scoring
         self.estimator.estimate(dest_file)
 
