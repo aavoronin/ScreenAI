@@ -20,7 +20,7 @@ class LinkedInNavigator(BaseNavigator):
         output_dir = config.get_path('output_dir')
         super().__init__(parser, output_dir)
         # Termination condition 1
-        self.MAX_CLOSE_BUTTONS = 200
+        self.MAX_CLOSE_BUTTONS = 10 #200
         self.MAX_SCROLL_DOWNS = 6
         self.VACANCIES_LINKED_IN_OUTPUT_PATH = config.get_path(
             'vacancies_linkedin_output_path'

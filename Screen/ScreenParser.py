@@ -10,14 +10,11 @@ import torch
 # ==========================================
 current_dir = os.path.dirname(os.path.abspath(__file__))
 project_root = os.path.dirname(current_dir)
-
 if project_root not in sys.path:
     sys.path.append(project_root)
-
 omniparser_path = os.path.join(project_root, "omniparser")
 if omniparser_path not in sys.path:
     sys.path.append(omniparser_path)
-
 from omniparser.util.utils import (
     check_ocr_box,
     get_yolo_model,
@@ -33,17 +30,14 @@ class ScreenParser:
         self._label_coordinates = None
         self._original_image = None
         self._expanded_image = None
-
         # Template matching for custom symbols
         self.custom_templates = {}  # symbol_name -> list of template images
         self._load_custom_templates()
-
         print("🔄 Loading YOLO model...")
         yolo_model_path = os.path.join(
             self.omniparser_repo_path, "weights", "icon_detect", "model.pt"
         )
         self.yolo_model = get_yolo_model(model_path=yolo_model_path)
-
         print("🔄 Loading Caption model (Florence-2)...")
         caption_model_path = os.path.join(
             self.omniparser_repo_path, "weights", "icon_caption_florence"
@@ -56,16 +50,13 @@ class ScreenParser:
     def _load_custom_templates(self):
         """Load custom symbol templates from custom_images folder."""
         custom_images_path = os.path.join(project_root, "custom_images")
-
         if not os.path.exists(custom_images_path):
             print(f"⚠️ custom_images folder not found at: {custom_images_path}")
             print(
                 "   Please create this folder and add subfolders (named after the symbol) containing .png/.jpg images.")
             return
-
         print("🔄 Loading custom symbol templates...")
         symbol_count = 0
-
         for item in os.listdir(custom_images_path):
             symbol_path = os.path.join(custom_images_path, item)
             if os.path.isdir(symbol_path):
@@ -80,14 +71,13 @@ class ScreenParser:
                             # Resize to 32x32 for consistency
                             template = cv2.resize(template, (32, 32))
                             templates.append(template)
-
+                        print(img_file)
                 if templates:
                     self.custom_templates[item] = templates
                     symbol_count += 1
                     print(f"  ✓ Loaded {len(templates)} template(s) for '{item}'")
                 else:
                     print(f"  ⚠️ No valid images (.png, .jpg, .jpeg) found in subfolder '{item}'")
-
         if symbol_count == 0:
             print(
                 "⚠️ Loaded 0 symbol types. Please ensure 'custom_images' contains subfolders with actual image files.")
@@ -98,29 +88,24 @@ class ScreenParser:
         """Detect custom symbols in the screenshot using template matching."""
         if not self.custom_templates:
             return []
-
         detected_symbols = []
         # Convert screenshot to grayscale
         if len(screenshot_np.shape) == 3:
             screenshot_gray = cv2.cvtColor(screenshot_np, cv2.COLOR_RGB2GRAY)
         else:
             screenshot_gray = screenshot_np
-
         screenshot_h, screenshot_w = screenshot_gray.shape
-
         # Search for each custom symbol
         for symbol_name, templates in self.custom_templates.items():
             for template in templates:
                 template_h, template_w = template.shape
                 # Perform template matching
                 result = cv2.matchTemplate(screenshot_gray, template, cv2.TM_CCOEFF_NORMED)
-                threshold = 0.80  # 80% confidence
+                threshold = 0.76  # confidence
                 locations = np.where(result >= threshold)
-
                 # Group nearby detections to avoid duplicates
                 points = list(zip(*locations[::-1]))
                 used_points = set()
-
                 for pt in points:
                     # Check if this point is too close to an already used point
                     is_duplicate = False
@@ -129,7 +114,6 @@ class ScreenParser:
                         if distance < 10:  # Within 10 pixels
                             is_duplicate = True
                             break
-
                     if not is_duplicate:
                         used_points.add(pt)
                         # Calculate normalized bounding box
@@ -137,7 +121,6 @@ class ScreenParser:
                         y1 = pt[1] / screenshot_h
                         x2 = (pt[0] + template_w) / screenshot_w
                         y2 = (pt[1] + template_h) / screenshot_h
-
                         detected_symbols.append({
                             'type': 'icon',
                             'bbox': [x1, y1, x2, y2],
@@ -153,12 +136,99 @@ class ScreenParser:
         self._original_image = None
         self._expanded_image = None
 
+    def transform_screen(
+            self,
+            image: Image.Image,
+            method: str = 'none',
+            threshold: int = 200,
+            block_size: int = 11,
+            c: int = 2,
+            lower_color: tuple = None,
+            upper_color: tuple = None,
+    ) -> Image.Image:
+        """
+        Applies image transformations to the screen capture to improve OCR and
+        element detection. The core logic is implemented here; subclasses should
+        override this method and call super().transform_screen() with specific
+        parameters to configure the transformation for their use case.
+
+        Examples of method parameter and usage:
+
+        1. method='binary'
+           Converts the image to grayscale and applies a global binary threshold.
+           Pixels above `threshold` become white (255), below become black (0).
+           Good for images with uniform lighting and clear contrast.
+           Example: super().transform_screen(image, method='binary', threshold=127)
+
+        2. method='adaptive'
+           Uses adaptive thresholding, calculating thresholds for small regions.
+           Useful for images with varying lighting conditions.
+           `block_size` defines the neighborhood size, `c` is a constant subtracted
+           from the mean.
+           Example: super().transform_screen(image, method='adaptive', block_size=15, c=5)
+
+        3. method='otsu'
+           Automatically calculates the optimal global threshold value using Otsu's
+           method. Best for bimodal images (clear foreground and background).
+           Example: super().transform_screen(image, method='otsu')
+
+        4. method='color_mask'
+           Masks out specific color ranges, turning everything outside the range
+           to black (or white, depending on implementation). Requires `lower_color`
+           and `upper_color` in HSV format.
+           Example:
+           lower = np.array([0, 0, 200])
+           upper = np.array([180, 50, 255])
+           super().transform_screen(image, method='color_mask', lower_color=lower, upper_color=upper)
+
+        5. method='none'
+           Returns the original image without any transformation.
+           Example: super().transform_screen(image, method='none')
+        """
+        if method == 'none':
+            return image
+
+        img_np = np.array(image)
+
+        if len(img_np.shape) == 3:
+            gray = cv2.cvtColor(img_np, cv2.COLOR_RGB2GRAY)
+        else:
+            gray = img_np
+
+        if method == 'binary':
+            _, binary = cv2.threshold(gray, threshold, 255, cv2.THRESH_BINARY)
+            return Image.fromarray(binary)
+
+        elif method == 'adaptive':
+            adaptive = cv2.adaptiveThreshold(
+                gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
+                cv2.THRESH_BINARY, block_size, c
+            )
+            return Image.fromarray(adaptive)
+
+        elif method == 'otsu':
+            _, otsu = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+            return Image.fromarray(otsu)
+
+        elif method == 'color_mask':
+            if lower_color is None or upper_color is None:
+                raise ValueError("lower_color and upper_color must be provided for color_mask method")
+            hsv = cv2.cvtColor(img_np, cv2.COLOR_RGB2HSV)
+            mask = cv2.inRange(hsv, np.array(lower_color), np.array(upper_color))
+            result = np.ones_like(img_np) * 255
+            result[mask > 0] = [0, 0, 0]
+            return Image.fromarray(result)
+
+        else:
+            raise ValueError(f"Unknown transformation method: {method}")
+
     def parse_screen(self, image: Image.Image):
         self.cleanup()
+        # Apply screen transformation before processing
+        image = self.transform_screen(image)
         self._original_image = image.convert("RGB")
         # Convert PIL Image to numpy array for template matching
         screenshot_np = np.array(self._original_image)
-
         ocr_bbox_rslt, _ = check_ocr_box(
             self._original_image,
             display_img=False,
@@ -167,7 +237,6 @@ class ScreenParser:
             use_paddleocr=False
         )
         ocr_text, ocr_bbox = ocr_bbox_rslt
-
         _, self._label_coordinates, self._parsed_content_list = get_som_labeled_img(
             image_source=self._original_image,
             model=self.yolo_model,
@@ -179,14 +248,12 @@ class ScreenParser:
             use_local_semantics=True,
             iou_threshold=0.9
         )
-
         # Detect custom symbols using template matching
         custom_symbols = self._detect_custom_symbols(screenshot_np)
         if custom_symbols:
             print(f" 🔍 Detected {len(custom_symbols)} custom symbol(s) via template matching")
             # Add custom symbols to parsed content list
             self._parsed_content_list.extend(custom_symbols)
-
         return self._parsed_content_list
 
     def get_bboxes(self):
@@ -203,13 +270,11 @@ class ScreenParser:
             abs_y1 = int(y1 * new_height)
             abs_x2 = int(x2 * new_width)
             abs_y2 = int(y2 * new_height)
-
             draw.rectangle(
                 [abs_x1, abs_y1, abs_x2, abs_y2],
                 outline=outline_color,
                 width=12
             )
-
             text_bbox = draw.textbbox((abs_x1, abs_y1), label, font=font)
             draw.rectangle(
                 [text_bbox[0], text_bbox[1], text_bbox[2], text_bbox[3]],
@@ -220,16 +285,13 @@ class ScreenParser:
     def draw_parsed_image(self) -> Image.Image:
         if self._original_image is None or self._parsed_content_list is None:
             raise ValueError("No screen parsed yet. Call parse_screen first.")
-
         orig_width, orig_height = self._original_image.size
         new_width = orig_width * 4
         new_height = orig_height * 4
-
         expanded_img = self._original_image.resize(
             (new_width, new_height), Image.Resampling.LANCZOS
         )
         draw = ImageDraw.Draw(expanded_img)
-
         try:
             font = ImageFont.truetype("arial.ttf", 16)
         except IOError:
@@ -237,13 +299,11 @@ class ScreenParser:
                 font = ImageFont.truetype("DejaVuSans.ttf", 16)
             except IOError:
                 font = ImageFont.load_default()
-
         for el in self._parsed_content_list:
             el_type = str(el.get('type', '')).lower()
             content = str(el.get('content', '')).strip()
             label = f"{el_type}: {content}" if content else el_type
             self._draw_single_bbox(draw, el.get('bbox', []), label, font, new_width, new_height)
-
         self._expanded_image = expanded_img
         return self._expanded_image
 

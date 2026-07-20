@@ -34,7 +34,7 @@ def test_screenshots():
         # Initialize the parser once
         parser = LinkedInScreenParser(OMNIPARSER_REPO_PATH)
 
-        for file_path in png_files:
+        for file_path in png_files[::-1]:
             filename = os.path.basename(file_path)
             print(f"--- Processing: {filename} ---")
 
