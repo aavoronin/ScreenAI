@@ -45,19 +45,20 @@ class HirifyScreenParser(ScreenParser):
                         print(f"📋 Found More Options button: '{content}' | BBox: {bbox}")
 
                 # 2. Detect triangle_down buttons (List screen - for scrolling)
-                if 'triangle_down' in content_lower or '▼' in content or 'down' in content_lower:
-                    if w <= 0.1 and h <= 0.1:
-                        self._triangle_down_candidates.append(el)
-                        print(f"🔻 Found triangle_down button: '{content}' | BBox: {bbox}")
+                if 'triangle_down' in content_lower:
+                   if 0.8 <= cx <= 1.0 and 0.8 <= cy <= 1.0:
+                        if w <= 0.1 and h <= 0.1:
+                            self._triangle_down_candidates.append(el)
+                            print(f"🔻 Found triangle_down button: '{content}' | BBox: {bbox}")
 
                 # 3. Detect next button (List screen - for pagination)
-                if 'next' in content_lower or '›' in content or '>' in content:
-                    if 0.3 <= cy <= 0.95:
+                if 'next' in content_lower:
+                    if 0.5 <= cx <= 0.97 and 0.1 <= cy <= 0.97:
                         self._next_buttons.append(el)
                         print(f"➡️ Found Next button: '{content}' | BBox: {bbox}")
 
                 # 4. Detect back button (Vacancy screen)
-                if 'back' in content_lower or '←' in content or 'arrow' in content_lower:
+                if 'back' in content_lower:
                     if cx <= 0.2 and cy <= 0.2:
                         self._back_button = el
                         print(f"🔙 Found back button: '{content}' | BBox: {bbox}")
