@@ -1,6 +1,6 @@
-from Navigators.HirifyMeNavigator import HirifyMeNavigator
+from Navigators.HirifyNavigator import HirifyNavigator
 from Navigators.LinkedInNavigator import LinkedInNavigator
-from Screen.HirifyMeScreenParser import HirifyMeScreenParser
+from Screen.HirifyScreenParser import HirifyScreenParser
 from project_to_file.project_to_file import project_to_file_main
 import torch
 from llama_cpp import llama_supports_gpu_offload
@@ -29,7 +29,7 @@ if __name__ == "__main__":
     #verify_gpu()
     #test_screenshots()
     #nv = LinkedInNavigator(OMNIPARSER_REPO_PATH)
-    nv = HirifyMeNavigator(OMNIPARSER_REPO_PATH)
+    nv = HirifyNavigator(OMNIPARSER_REPO_PATH)
     #nv.analyze_collected()
     #nv.run()
     nv.run_on_urls()

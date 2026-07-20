@@ -3,32 +3,28 @@ from PIL import Image, ImageDraw, ImageFont
 from Screen.ScreenParser import ScreenParser
 
 
-class HirifyMeScreenParser(ScreenParser):
+class HirifyScreenParser(ScreenParser):
     def __init__(self, omniparser_repo_path: str):
         super().__init__(omniparser_repo_path)
+        # Initialize attributes for BOTH screens
         self._more_options_buttons = []
-        self._next_buttons = []
         self._triangle_down_candidates = []
+        self._next_buttons = []
+        self._back_button = None
 
     def transform_screen(self, image: Image.Image) -> Image.Image:
-        """
-        Override to apply specific transformations for Hirify screens.
-        Using Otsu's method for binarization.
-        """
+        """Apply transformations optimized for Hirify screens."""
         return super().transform_screen(image, method='otsu')
 
     def parse_screen(self, image: Image.Image):
-        """
-        Parse the screen and identify:
-        - More options buttons (three dots menu for vacancies)
-        - Triangle down buttons (for scrolling/expanding)
-        - Next buttons (for pagination)
-        """
+        """Parse screen and detect elements for BOTH List and Vacancy screens."""
         parsed_content_list = super().parse_screen(image)
 
+        # Reset attributes for each parse
         self._more_options_buttons = []
-        self._next_buttons = []
         self._triangle_down_candidates = []
+        self._next_buttons = []
+        self._back_button = None
 
         for el in parsed_content_list:
             content = str(el.get('content', '')).strip()
@@ -42,32 +38,29 @@ class HirifyMeScreenParser(ScreenParser):
                 w = x2 - x1
                 h = y2 - y1
 
-                # Detect "more options" or "more" buttons
-                # These are typically three dots icons or text saying "more"
-                if ('more' in content_lower or
-                        'options' in content_lower or
-                        '⋮' in content or
-                        '...' in content):
-                    # Adjust detection area - typically in job cards
-                    # Look for buttons that are relatively small and positioned appropriately
-                    if w <= 0.1 and h <= 0.1:  # Small icon/button
+                # 1. Detect "more options" or "more" buttons (List screen)
+                if 'more options' in content_lower or content_lower == 'more':
+                    if w <= 0.15 and h <= 0.15 and 0.1 <= cx <= 0.9 and 0.1 <= cy <= 0.9:
                         self._more_options_buttons.append(el)
-                        print(f"Found 'more options' button: '{content}' | BBox: {bbox}")
+                        print(f"📋 Found More Options button: '{content}' | BBox: {bbox}")
 
-                # Detect triangle_down buttons (for scrolling/expanding filters)
+                # 2. Detect triangle_down buttons (List screen - for scrolling)
                 if 'triangle_down' in content_lower or '▼' in content or 'down' in content_lower:
-                    # Adjust detection area - typically in filter sections or pagination
-                    if 0.0 <= cx <= 1.0 and 0.1 <= cy <= 0.95:  # Wider vertical range
-                        if w <= 0.08 and h <= 0.08:  # Small icon
-                            self._triangle_down_candidates.append(el)
-                            print(f"Found triangle_down button: '{content}' | BBox: {bbox}")
+                    if w <= 0.1 and h <= 0.1:
+                        self._triangle_down_candidates.append(el)
+                        print(f"🔻 Found triangle_down button: '{content}' | BBox: {bbox}")
 
-                # Detect next button (for pagination)
+                # 3. Detect next button (List screen - for pagination)
                 if 'next' in content_lower or '›' in content or '>' in content:
-                    # Next button is typically at the bottom of the page
-                    if 0.3 <= cy <= 0.95:  # Bottom half of screen
+                    if 0.3 <= cy <= 0.95:
                         self._next_buttons.append(el)
-                        print(f"Found Next button: '{content}' | BBox: {bbox}")
+                        print(f"➡️ Found Next button: '{content}' | BBox: {bbox}")
+
+                # 4. Detect back button (Vacancy screen)
+                if 'back' in content_lower or '←' in content or 'arrow' in content_lower:
+                    if cx <= 0.2 and cy <= 0.2:
+                        self._back_button = el
+                        print(f"🔙 Found back button: '{content}' | BBox: {bbox}")
 
         # Sort more_options_buttons by Y coordinate (top to bottom)
         self._more_options_buttons.sort(key=lambda btn: (btn['bbox'][1] + btn['bbox'][3]) / 2.0)
@@ -75,13 +68,6 @@ class HirifyMeScreenParser(ScreenParser):
         return parsed_content_list
 
     def draw_parsed_image(self) -> Image.Image:
-        """
-        Draw bounding boxes on the parsed image with different colors:
-        - Red: All parsed elements (from base class)
-        - Blue: More options buttons
-        - Green: Triangle down buttons
-        - Orange: Next buttons
-        """
         if self._original_image is None or self._parsed_content_list is None:
             raise ValueError("No screen parsed yet. Call parse_screen first.")
 
@@ -107,24 +93,22 @@ class HirifyMeScreenParser(ScreenParser):
             label = f"{label_prefix}: {content}" if content else label_prefix
             self._draw_single_bbox(draw, el.get('bbox', []), label, font, new_width, new_height, outline_color=color)
 
-        # Draw all parsed elements in red (from base class)
+        # Draw all parsed elements in red
         for el in self._parsed_content_list:
             el_type = str(el.get('type', '')).lower()
             content = str(el.get('content', '')).strip()
             label = f"{el_type}: {content}" if content else el_type
             self._draw_single_bbox(draw, el.get('bbox', []), label, font, new_width, new_height, outline_color="red")
 
-        # Draw more options buttons in blue
+        # Draw specific elements in distinct colors
         for more_btn in self._more_options_buttons:
             draw_colored_element(more_btn, "More Options", "blue")
-
-        # Draw triangle down buttons in green
         for triangle_btn in self._triangle_down_candidates:
             draw_colored_element(triangle_btn, "Triangle Down", "green")
-
-        # Draw next buttons in orange
         for next_btn in self._next_buttons:
             draw_colored_element(next_btn, "Next", "orange")
+        if self._back_button:
+            draw_colored_element(self._back_button, "Back", "purple")
 
         self._expanded_image = expanded_img
         return self._expanded_image
