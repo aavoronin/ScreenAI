@@ -21,7 +21,7 @@ class HirifyNavigator(BaseNavigator):
         super().__init__(parser, output_dir)
 
         # Termination conditions
-        self.MAX_VACANCIES_PER_URL = 50
+        self.MAX_VACANCIES_PER_URL = 250
         self.MAX_SCROLL_DOWNS = 10
         self.HIRIFY_URLS_FILE_PATH = r"C:\Py\ScreenAI\Navigators\hirify_urls.csv"
         self.VACANCIES_HIRIFY_OUTPUT_PATH = config.get_path('vacancies_hirify_output_path')
@@ -70,10 +70,8 @@ class HirifyNavigator(BaseNavigator):
         State-machine logic to handle BOTH List Screen and Vacancy Screen.
         """
         vacancies_processed = 0
-        scroll_count = 0
 
         while vacancies_processed < self.MAX_VACANCIES_PER_URL:
-            # 1. Parse screen ONCE per page state
             print("📊 Parsing screen...")
             screenshot = ImageGrab.grab()
             self.parser.parse_screen(screenshot)
@@ -82,9 +80,9 @@ class HirifyNavigator(BaseNavigator):
             triangle_downs = self.parser._triangle_down_candidates
             next_buttons = self.parser._next_buttons
 
-            # 2. Process ALL vacancies based on CURRENT parsing (without reparsing in between)
-            processed_on_this_parse = 0
+            vacancies_processed0 = vacancies_processed
 
+            # 1. Process all "More" buttons found on the current screen
             for more_btn in more_options_buttons:
                 if vacancies_processed >= self.MAX_VACANCIES_PER_URL:
                     print(f"✅ Reached MAX_VACANCIES_PER_URL ({self.MAX_VACANCIES_PER_URL}). Stopping.")
@@ -92,13 +90,12 @@ class HirifyNavigator(BaseNavigator):
 
                 print(f"  Processing vacancy {vacancies_processed + 1}/{self.MAX_VACANCIES_PER_URL}")
 
-                # Click 10% left of the more options button
                 bbox = more_btn.get('bbox', [])
                 if len(bbox) == 4:
                     x1, y1, x2, y2 = bbox
                     cx = (x1 + x2) / 2.0
                     cy = (y1 + y2) / 2.0
-                    click_x_ratio = max(0.0, cx - 0.10)
+                    click_x_ratio = max(0.0, cx - 0.10)  # 10% left of the button
                     click_y_ratio = cy
                     self._click_at_ratio(click_x_ratio, click_y_ratio)
                 else:
@@ -106,42 +103,36 @@ class HirifyNavigator(BaseNavigator):
 
                 time.sleep(5)  # Wait for vacancy page to load
 
-                # Process vacancy
                 current_url = self._get_current_url()
                 if current_url and 'hirify.me/jobs/' in current_url:
+                    print(f"  💾 Saving and processing vacancy: {current_url}")
                     self._save_and_process_vacancy(current_url)
                     vacancies_processed += 1
-                    processed_on_this_parse += 1
+
+                    print("  ⏪ Navigating back to vacancy list...")
+                    self._navigate_back_to_list()
+                    time.sleep(10)  # Wait for list page to load
                 else:
-                    print("  ⚠️ Failed to navigate to vacancy page or URL not detected.")
+                    print(f"  ⚠️ Failed to navigate to vacancy page (URL: {current_url}). Skipping this button.")
+                    pyautogui.press('esc')  # Close any dropdowns that might have opened
+                    time.sleep(1)
+                    continue  # Skip to next button WITHOUT clicking "Back"
 
-                # Navigate back
-                print("  ⏪ Navigating back to vacancy list...")
-                self._navigate_back_to_list()
-                time.sleep(10)  # Wait at least 10 seconds for list to load
-
-            # 3. After iterating through all found buttons, check if we need to scroll or go next
-            if processed_on_this_parse == 0:
-                print("⚠️ No vacancies were processed in this pass.")
-
-            # Check if we should scroll down to load more
-            if triangle_downs:
-                print(f"🔻 Triangle down detected. Clicking to load more vacancies...")
+            # 2. AFTER processing all buttons on the current screen, we MUST load more vacancies.
+            if triangle_downs and vacancies_processed0 < vacancies_processed:
+                print(f"🔻 Triangle down detected. Clicking {self.MAX_SCROLL_DOWNS} times to load more vacancies...")
                 for _ in range(self.MAX_SCROLL_DOWNS):
                     self.click_bbox_center(triangle_downs[0]['bbox'])
                     time.sleep(0.2)
-                # Loop continues, which will reparse the screen
-                continue
+                continue  # Reparse screen to find NEW vacancies
 
-            # Check if we should go to next page
             if next_buttons:
                 print("➡️ Next button detected. Clicking and waiting 20s...")
                 self.click_bbox_center(next_buttons[0]['bbox'])
                 time.sleep(20)
-                # Loop continues, which will reparse the screen
-                continue
+                continue  # Reparse screen
 
-            # If no more options, no scroll, and no next, we are done with this URL
+            # If neither scroll nor next worked, we are done with this URL
             print("🛑 No more vacancies, no scroll, and no next button. Ending automation for this URL.")
             break
 

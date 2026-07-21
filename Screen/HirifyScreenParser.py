@@ -6,7 +6,7 @@ from Screen.ScreenParser import ScreenParser
 class HirifyScreenParser(ScreenParser):
     def __init__(self, omniparser_repo_path: str):
         super().__init__(omniparser_repo_path)
-        # Initialize attributes for BOTH screens
+
         self._more_options_buttons = []
         self._triangle_down_candidates = []
         self._next_buttons = []
@@ -52,7 +52,7 @@ class HirifyScreenParser(ScreenParser):
                             print(f"🔻 Found triangle_down button: '{content}' | BBox: {bbox}")
 
                 # 3. Detect next button (List screen - for pagination)
-                if 'next' in content_lower:
+                if 'next' in content_lower and 'month' not in content_lower and len(content_lower) < 8:
                     if 0.5 <= cx <= 0.97 and 0.1 <= cy <= 0.97:
                         self._next_buttons.append(el)
                         print(f"➡️ Found Next button: '{content}' | BBox: {bbox}")
