@@ -193,3 +193,10 @@ class HirifyNavigator(BaseNavigator):
         if match:
             return match.group(1)
         return None
+
+    def analyze_collected(self):
+        """
+        Analyze all collected Hirify vacancy MHTML files.
+        Delegates to the HirifyVacancyEstimator to parse, clean, and estimate them.
+        """
+        self.estimator.estimate_vacancies()

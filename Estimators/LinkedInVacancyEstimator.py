@@ -165,3 +165,4 @@ class LinkedInVacancyEstimator(BaseVacancyEstimator):
             self.estimate(mhtml_path)
 
         print("✅ Finished estimating all vacancies.")
+

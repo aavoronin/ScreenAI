@@ -1,3 +1,5 @@
+import time
+
 from Navigators.HirifyNavigator import HirifyNavigator
 from Navigators.LinkedInNavigator import LinkedInNavigator
 from Screen.HirifyScreenParser import HirifyScreenParser
@@ -22,6 +24,7 @@ def verify_gpu():
 
 
 if __name__ == "__main__":
+    #time.sleep(3600 * 4)
     config = Config()
     OMNIPARSER_REPO_PATH = config.get_path('omniparser_repo_path')
 
@@ -30,6 +33,5 @@ if __name__ == "__main__":
     #test_screenshots()
     #nv = LinkedInNavigator(OMNIPARSER_REPO_PATH)
     nv = HirifyNavigator(OMNIPARSER_REPO_PATH)
-    #nv.analyze_collected()
-    #nv.run()
+    nv.analyze_collected()
     nv.run_on_urls()
