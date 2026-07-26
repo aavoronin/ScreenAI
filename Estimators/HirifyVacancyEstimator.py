@@ -18,7 +18,7 @@ class HirifyVacancyEstimator(BaseVacancyEstimator):
 
     def __init__(self):
         super().__init__()
-        self.PARSING_VERSION = 1
+        self.PARSING_VERSION = 2
 
     def parse_filename(self, mhtml_path):
         """
@@ -40,7 +40,8 @@ class HirifyVacancyEstimator(BaseVacancyEstimator):
     def html_to_formatted_text(self, html_content, vacancy_url: str = None):
         """
         Convert Hirify vacancy HTML to formatted plain text.
-        Based on the attached MHTML example structure.
+        Truncates the text at "Similar vacancies" to remove footer noise
+        and other job listings that are not part of the current vacancy.
         """
         # 1. Remove invisible content (scripts, styles, etc.)
         html_content = self.strip_tags(html_content, self.get_tags_to_remove())
@@ -51,13 +52,6 @@ class HirifyVacancyEstimator(BaseVacancyEstimator):
         # 3. Parse with BeautifulSoup
         soup = BeautifulSoup(html_content, 'html.parser')
 
-        # 4. Extract main content areas specific to Hirify
-        # Based on the screenshot, look for:
-        # - Job title (e.g., "Data Engineer II (AWS)")
-        # - Job description section
-        # - Company information
-        # - Requirements/benefits
-
         text_parts = []
 
         # Add vacancy URL as first line if provided
@@ -65,60 +59,23 @@ class HirifyVacancyEstimator(BaseVacancyEstimator):
             text_parts.append(f"Vacancy URL: {vacancy_url}")
             text_parts.append("")  # Empty line for separation
 
-        # Try to find job title - usually in h1 or prominent heading
-        title_tags = soup.find_all(['h1', 'h2'])
-        for tag in title_tags:
-            text = tag.get_text(strip=True)
-            if text and len(text) < 200:  # Reasonable title length
-                text_parts.append(f"Title: {text}")
-                break
+        # Extract all visible text
+        visible_text = self.extract_visible_text(str(soup))
 
-        # Find job description section
-        # Look for sections containing "Job description", "Description", etc.
-        for section in soup.find_all(['div', 'section', 'article']):
-            section_text = section.get_text(' ', strip=True).lower()
-            if any(keyword in section_text for keyword in ['job description', 'description', 'responsibilities']):
-                # Extract the full text from this section
-                full_text = section.get_text(' ', strip=True)
-                if full_text and len(full_text) > 100:
-                    text_parts.append(f"\nJob Description:\n{full_text}")
+        # Truncate at "Similar vacancies" to remove noise from other listings
+        cutoff_marker = "Similar vacancies"
+        if cutoff_marker in visible_text:
+            visible_text = visible_text[:visible_text.index(cutoff_marker)]
 
-        # Find company information
-        for section in soup.find_all(['div', 'section']):
-            section_text = section.get_text(' ', strip=True).lower()
-            if 'company' in section_text or 'about us' in section_text:
-                full_text = section.get_text(' ', strip=True)
-                if full_text and len(full_text) > 50:
-                    text_parts.append(f"\nCompany:\n{full_text}")
-                    break
+        text_parts.append(visible_text.strip())
 
-        # Find requirements/qualifications
-        for section in soup.find_all(['div', 'section', 'ul']):
-            section_text = section.get_text(' ', strip=True).lower()
-            if any(keyword in section_text for keyword in ['requirements', 'qualifications', 'skills', 'must have']):
-                full_text = section.get_text(' ', strip=True)
-                if full_text and len(full_text) > 50:
-                    text_parts.append(f"\nRequirements:\n{full_text}")
-
-        # Find benefits if present
-        for section in soup.find_all(['div', 'section', 'ul']):
-            section_text = section.get_text(' ', strip=True).lower()
-            if 'benefits' in section_text or 'we offer' in section_text:
-                full_text = section.get_text(' ', strip=True)
-                if full_text and len(full_text) > 50:
-                    text_parts.append(f"\nBenefits:\n{full_text}")
-
-        # If no specific sections found, extract all visible text
-        if len(text_parts) <= 2:  # Only URL and maybe title
-            visible_text = self.extract_visible_text(str(soup))
-            if visible_text:
-                text_parts.append(f"\nFull Content:\n{visible_text}")
-
-        # Join all parts and clean up
+        # Join all parts
         text = '\n'.join(text_parts)
 
-        # Clean up excessive whitespace
+        # Clean up excessive whitespace (more than 2 consecutive newlines)
         text = re.sub(r'\n{3,}', '\n\n', text)
+        # Clean up spaces around newlines and multiple spaces
+        text = re.sub(r' *\n *', '\n', text)
         text = re.sub(r'[ \t]+', ' ', text)
 
         return text.strip()

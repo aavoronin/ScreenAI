@@ -84,9 +84,12 @@ class LinkedInNavigator(BaseNavigator):
             print("⏳ Waiting 30 seconds for the page to load...")
             time.sleep(30)
 
-            # Run the automation logic
-            print("🤖 Starting LinkedIn automation logic for this URL...")
-            self._execute_linkedin_automation()
+            try:
+                # Run the automation logic
+                print("🤖 Starting LinkedIn automation logic for this URL...")
+                self._execute_linkedin_automation()
+            except Exception as e:
+                continue
 
         print("✅ Finished processing all URLs.")
 
@@ -95,8 +98,14 @@ class LinkedInNavigator(BaseNavigator):
         while True:
             # 1. Parse screen
             print("\nParsing screen...")
-            screenshot = ImageGrab.grab()
-            self.parser.parse_screen(screenshot)
+            for _ in range(10):
+                try:
+                    screenshot = ImageGrab.grab()
+                    self.parser.parse_screen(screenshot)
+                except Exception as e:
+                    time.sleep(10)
+                    continue
+                break
             close_pairs = self.parser._close_pairs
             linkedin_buttons = self.parser._linkedin_buttons
             next_buttons = self.parser._next_buttons

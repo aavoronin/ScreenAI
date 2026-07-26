@@ -58,8 +58,12 @@ class HirifyNavigator(BaseNavigator):
             print("⏳ Waiting 30 seconds for the page to load...")
             time.sleep(30)
 
-            print("🤖 Starting Hirify automation logic for this URL...")
-            self._execute_hirify_automation()
+            try:
+                # Run the automation logic
+                print("🤖 Starting Hirify automation logic for this URL...")
+                self._execute_hirify_automation()
+            except Exception as e:
+                continue
 
             print(f"✅ Finished processing URL: {url}")
 
@@ -73,8 +77,14 @@ class HirifyNavigator(BaseNavigator):
 
         while vacancies_processed < self.MAX_VACANCIES_PER_URL:
             print("📊 Parsing screen...")
-            screenshot = ImageGrab.grab()
-            self.parser.parse_screen(screenshot)
+            for _ in range(10):
+                try:
+                    screenshot = ImageGrab.grab()
+                    self.parser.parse_screen(screenshot)
+                except Exception as e:
+                    time.sleep(10)
+                    continue
+                break
 
             more_options_buttons = self.parser._more_options_buttons
             triangle_downs = self.parser._triangle_down_candidates

@@ -31,7 +31,8 @@ if __name__ == "__main__":
     project_to_file_main()
     #verify_gpu()
     #test_screenshots()
-    #nv = LinkedInNavigator(OMNIPARSER_REPO_PATH)
-    nv = HirifyNavigator(OMNIPARSER_REPO_PATH)
-    nv.analyze_collected()
-    nv.run_on_urls()
+    nv1 = LinkedInNavigator(OMNIPARSER_REPO_PATH)
+    nv2 = HirifyNavigator(OMNIPARSER_REPO_PATH)
+    for nv in [nv1, nv2]:
+        #nv.analyze_collected()
+        nv.run_on_urls()
