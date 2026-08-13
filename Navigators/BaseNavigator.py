@@ -25,8 +25,10 @@ class BaseNavigator:
         print(f"  🖱️ Clicking at pixel coords: ({click_x}, {click_y})")
         pyautogui.click(click_x, click_y)
 
-    def click_bbox_center(self, bbox):
+    def click_bbox_center(self, bbox, print_xy = False):
         x, y = self.get_pixel_center(bbox)
+        if print_xy:
+            print(f"Clicking at pixel coords: ({x}, {y})")
         pyautogui.click(x, y)
 
     def save_browser_page_as_mhtml(self, dest_file):

@@ -52,6 +52,11 @@ class LinkedInScreenParser(ScreenParser):
                 w = x2 - x1
                 h = y2 - y1
                 if 0.25 <= cx <= 0.5 and 0.3 <= cy <= 0.8 and w <= 0.05 and h <= 0.05:
+                    self._close_pairs.append({
+                        'close_button': close_el
+                        # ,'left_button': best_match
+                    })
+                    """
                     close_x1, close_y1, close_x2, close_y2 = bbox
                     best_match = None
                     min_distance = float('inf')
@@ -83,6 +88,7 @@ class LinkedInScreenParser(ScreenParser):
                             print(f"Found Close pair: Close='{close_el.get('content')}', Left='{best_match.get('content')}'")
                     else:
                         print(f"Found Close button but no valid left partner: '{close_el.get('content')}'")
+                """
         # 2. Sort close_pairs by the Y coordinate of the center of the close button bbox (ascending)
         self._close_pairs.sort(key=lambda pair: (pair['close_button']['bbox'][1] + pair['close_button']['bbox'][3]) / 2.0)
         return parsed_content_list

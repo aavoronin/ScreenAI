@@ -125,7 +125,9 @@ class LinkedInNavigator(BaseNavigator):
                 print(pair)
                 close_bbox = pair['close_button']['bbox']
                 # Click left 10% of the close button
-                self.click_area_near_bbox(close_bbox, dx=-0.1, dy=0.0)
+                dx = (close_bbox[2] - close_bbox[0]) * 4
+                dy = (close_bbox[3] - close_bbox[1]) * 0.4
+                self.click_area_near_bbox(close_bbox, dx= -dx, dy=-dy)
                 # Wait 5 sec
                 time.sleep(5)
                 # Find first bbox in _linkedin_buttons

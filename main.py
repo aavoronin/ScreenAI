@@ -33,6 +33,8 @@ if __name__ == "__main__":
     #test_screenshots()
     nv1 = LinkedInNavigator(OMNIPARSER_REPO_PATH)
     nv2 = HirifyNavigator(OMNIPARSER_REPO_PATH)
-    for nv in [nv1, nv2]:
+    for nv in [
+        nv1,
+        nv2]:
         #nv.analyze_collected()
         nv.run_on_urls()
