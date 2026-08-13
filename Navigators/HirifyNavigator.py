@@ -24,7 +24,7 @@ class HirifyNavigator(BaseNavigator):
         self.MAX_VACANCIES_PER_URL = 250
         self.MAX_SCROLL_DOWNS = 10
         self.HIRIFY_URLS_FILE_PATH = r"C:\Py\ScreenAI\Navigators\hirify_urls.csv"
-        self.VACANCIES_HIRIFY_OUTPUT_PATH = config.get_path('vacancies_hirify_output_path')
+        self.VACANCIES_OUTPUT_PATH = config.get_path('vacancies_hirify_output_path')
 
         # Estimator responsible for parsing saved MHTML files
         self.estimator = HirifyVacancyEstimator()
@@ -172,7 +172,7 @@ class HirifyNavigator(BaseNavigator):
             return
 
         dest_file = os.path.join(
-            self.VACANCIES_HIRIFY_OUTPUT_PATH,
+            self.VACANCIES_OUTPUT_PATH,
             f'Hirify_Vacancy_{job_id}.mhtml'
         )
 

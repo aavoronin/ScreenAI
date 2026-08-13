@@ -22,7 +22,7 @@ class LinkedInNavigator(BaseNavigator):
         # Termination condition 1
         self.MAX_CLOSE_BUTTONS = 200
         self.MAX_SCROLL_DOWNS = 6
-        self.VACANCIES_LINKED_IN_OUTPUT_PATH = config.get_path(
+        self.VACANCIES_OUTPUT_PATH = config.get_path(
             'vacancies_linkedin_output_path'
         )
         # Estimator responsible for parsing saved MHTML files
@@ -193,7 +193,7 @@ class LinkedInNavigator(BaseNavigator):
         job_id = match.group(1)
         # 2. Create destination file path
         dest_file = os.path.join(
-            self.VACANCIES_LINKED_IN_OUTPUT_PATH,
+            self.VACANCIES_OUTPUT_PATH,
             f'LinkedIn_Vacancy_{job_id}.mhtml'
         )
         # 3. Make folders if they do not exist

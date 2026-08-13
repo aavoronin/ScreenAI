@@ -4,12 +4,18 @@ import time
 import pyautogui
 import pyperclip
 
+from Estimators.BaseVacancyEstimator import BaseVacancyEstimator
+
+
 class BaseNavigator:
+
     def __init__(self, parser, output_dir: str):
         self.parser = parser
         self.output_dir = output_dir
         os.makedirs(self.output_dir, exist_ok=True)
         self.screen_width, self.screen_height = pyautogui.size()
+        self.estimator: BaseVacancyEstimator = None
+        self.VACANCIES_OUTPUT_PATH = None
 
     def get_pixel_center(self, bbox):
         x1, y1, x2, y2 = bbox
@@ -56,3 +62,7 @@ class BaseNavigator:
 
     def _toggle_numlock(self):
         pyautogui.press('numlock')
+
+    def group_vacancies(self):
+        print(self.VACANCIES_OUTPUT_PATH)
+        #self.estimator
