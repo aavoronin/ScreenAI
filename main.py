@@ -32,8 +32,9 @@ if __name__ == "__main__":
     #verify_gpu()
     #test_screenshots()
     nv1 = LinkedInNavigator(OMNIPARSER_REPO_PATH)
-    nv1.group_vacancies()
+    #nv1.group_vacancies()
     nv2 = HirifyNavigator(OMNIPARSER_REPO_PATH)
+    #nv2.group_vacancies()
     for nv in [
         nv1,
         nv2]:

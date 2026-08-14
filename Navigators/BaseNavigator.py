@@ -1,14 +1,14 @@
 import os
+import re
 import ctypes
 import time
+from datetime import datetime
 import pyautogui
 import pyperclip
-
 from Estimators.BaseVacancyEstimator import BaseVacancyEstimator
 
 
 class BaseNavigator:
-
     def __init__(self, parser, output_dir: str):
         self.parser = parser
         self.output_dir = output_dir
@@ -31,7 +31,7 @@ class BaseNavigator:
         print(f"  🖱️ Clicking at pixel coords: ({click_x}, {click_y})")
         pyautogui.click(click_x, click_y)
 
-    def click_bbox_center(self, bbox, print_xy = False):
+    def click_bbox_center(self, bbox, print_xy=False):
         x, y = self.get_pixel_center(bbox)
         if print_xy:
             print(f"Clicking at pixel coords: ({x}, {y})")
@@ -65,4 +65,111 @@ class BaseNavigator:
 
     def group_vacancies(self):
         print(self.VACANCIES_OUTPUT_PATH)
-        #self.estimator
+        vacancies_dir = os.path.join(self.VACANCIES_OUTPUT_PATH)
+        chunks_dir = os.path.join(self.VACANCIES_OUTPUT_PATH, '..' , 'Chunks')
+
+        if not os.path.exists(vacancies_dir):
+            print(f"⚠️ Vacancies directory does not exist: {vacancies_dir}")
+            return
+
+        # Create the Chunks folder if it does not exist yet
+        os.makedirs(chunks_dir, exist_ok=True)
+
+        # Collect files matching <site>_Vacancy_<JobId>.txt
+        file_pattern = re.compile(r'^(\w+)_Vacancy_(\d+)\.txt$')
+        candidates = []
+        for filename in os.listdir(vacancies_dir):
+            match = file_pattern.match(filename)
+            if not match:
+                continue
+            file_path = os.path.join(vacancies_dir, filename)
+            if not os.path.isfile(file_path):
+                continue
+            created_time = os.path.getctime(file_path)
+            candidates.append({
+                'filename': filename,
+                'file_path': file_path,
+                'created_time': created_time,
+                'site': match.group(1)
+            })
+
+        if not candidates:
+            print(f"ℹ️ No matching vacancy .txt files in {vacancies_dir}")
+            return
+
+        # Sort by created date in ascending order
+        candidates.sort(key=lambda item: item['created_time'])
+
+        print(f"🔍 Found {len(candidates)} vacancy .txt file(s) to group.")
+
+        max_chunk_size = 1024 * 1024 * 2
+        current_chunk = []
+        current_chunk_size = 0
+
+        for item in candidates:
+            with open(item['file_path'], 'r', encoding='utf-8',
+                      errors='ignore') as f:
+                content = f.read()
+
+            loaded_str = datetime.fromtimestamp(
+                item['created_time']
+            ).strftime('%Y-%m-%d %H:%M:%S')
+
+            # Build the wrapped block for this file and measure its size
+            block = f"=======Start {item['filename']}=======\n"
+            block += f"loaded: {loaded_str}\n"
+            block += content
+            if not content.endswith('\n'):
+                block += '\n'
+            block += f"=======End {item['filename']}=======\n"
+
+            block_size = len(block.encode('utf-8'))
+
+            # Flush the current chunk if this file would exceed the limit
+            exceeds_limit = current_chunk_size + block_size > max_chunk_size
+            if current_chunk and exceeds_limit:
+                self._write_vacancy_chunk(current_chunk, chunks_dir)
+                current_chunk = []
+                current_chunk_size = 0
+
+            current_chunk.append({
+                'filename': item['filename'],
+                'site': item['site'],
+                'created_time': item['created_time'],
+                'block': block
+            })
+            current_chunk_size += block_size
+
+        # Flush the remaining chunk, if any
+        if current_chunk:
+            self._write_vacancy_chunk(current_chunk, chunks_dir)
+
+        print("✅ Finished grouping vacancies into chunks.")
+
+    def _write_vacancy_chunk(self, chunk, chunks_dir):
+        """
+        Write one chunk of grouped vacancy files into the Chunks folder.
+        The chunk is named <site>_Vacancies_<YYYYMMDDHHMMSS>.txt where
+        the timestamp comes from the latest (last) file in the chunk.
+        Original vacancy files are only read, never deleted.
+        """
+        if not chunk:
+            return
+
+        # Chunks are built in ascending created-date order, so the last
+        # item holds the latest timestamp and determines the chunk name.
+        latest = chunk[-1]
+        timestamp_str = datetime.fromtimestamp(
+            latest['created_time']
+        ).strftime('%Y%m%d%H%M%S')
+        chunk_name = f"{latest['site']}_Vacancies_{timestamp_str}.txt"
+        chunk_path = os.path.join(chunks_dir, chunk_name)
+
+        chunk_content = ''.join(item['block'] for item in chunk)
+
+        with open(chunk_path, 'w', encoding='utf-8') as f:
+            f.write(chunk_content)
+
+        chunk_size = len(chunk_content.encode('utf-8'))
+        print(f"📦 Chunk: {chunk_name} | Size: {chunk_size} bytes | "
+              f"Files: {len(chunk)}")
