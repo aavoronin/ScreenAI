@@ -79,6 +79,7 @@ class HirifyNavigator(BaseNavigator):
             print("📊 Parsing screen...")
             for _ in range(10):
                 try:
+                    self.check_wait()
                     screenshot = ImageGrab.grab()
                     self.parser.parse_screen(screenshot)
                 except Exception as e:

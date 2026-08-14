@@ -100,6 +100,7 @@ class LinkedInNavigator(BaseNavigator):
             print("\nParsing screen...")
             for _ in range(10):
                 try:
+                    self.check_wait()
                     screenshot = ImageGrab.grab()
                     self.parser.parse_screen(screenshot)
                 except Exception as e:
@@ -209,3 +210,4 @@ class LinkedInNavigator(BaseNavigator):
 
     def analyze_collected(self):
         self.estimator.estimate_vacancies()
+

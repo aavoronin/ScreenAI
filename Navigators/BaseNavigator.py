@@ -37,6 +37,13 @@ class BaseNavigator:
             print(f"Clicking at pixel coords: ({x}, {y})")
         pyautogui.click(x, y)
 
+    def check_wait(self):
+        if self._is_numlock_on():
+            print("⏸️ NumLock is ON. Waiting until it is turned off...")
+            while self._is_numlock_on():
+                time.sleep(1)
+            print("▶️ NumLock is OFF. Resuming.")
+
     def save_browser_page_as_mhtml(self, dest_file):
         """
         Save the current browser page as MHTML to the specified file.
