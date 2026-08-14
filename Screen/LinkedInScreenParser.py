@@ -33,8 +33,8 @@ class LinkedInScreenParser(ScreenParser):
                     if 0.25 <= cx <= 0.5 and 0.8 <= cy <= 0.95 and w <= 0.05 and h <= 0.05:
                         self._scroll_down_candidates.append(el)
                         print(f"triangle_down button: '{el.get('content')}'| BBox: {el.get('bbox')}")
-                if 'next' in content_lower:
-                    if 0.25 <= cx <= 0.5 and 0.6 <= cy <= 0.95:
+                if 'next' == content_lower.strip():
+                    if 0.35 <= cx <= 0.5 and 0.6 <= cy <= 0.95:
                         self._next_buttons.append(el)
                         print(f"Found Next button: '{el.get('content')}'| BBox: {el.get('bbox')}")
                 if ('linkedin' in content_lower):
