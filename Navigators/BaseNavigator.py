@@ -109,7 +109,7 @@ class BaseNavigator:
 
         print(f"🔍 Found {len(candidates)} vacancy .txt file(s) to group.")
 
-        max_chunk_size = 1024 * 1024 * 2
+        max_chunk_size = 1024 * 1024 * 10
         current_chunk = []
         current_chunk_size = 0
 
