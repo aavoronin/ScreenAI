@@ -80,7 +80,7 @@ def concatenate_project_files(project_path, output_filename='combined_output.txt
     }
 
     exclude_dirs = {'weights', '.idea', '__pycache__', '.venv',
-                    '.git', 'premsql', "TestCases", "out"}
+                    '.git', 'premsql', "TestCases", "out", "omniparser"}
     exclude_extensions = {'.pyc', '.pyo', '.pyd', '.mhtml',
                           '.cmd', '.ipynb', '.ipynb_checkpoints',
                           '.ipynb_media', '.sh',

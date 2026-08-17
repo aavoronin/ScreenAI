@@ -38,7 +38,7 @@ class LinkedInScreenParser(ScreenParser):
                         self._next_buttons.append(el)
                         print(f"Found Next button: '{el.get('content')}'| BBox: {el.get('bbox')}")
                 if ('linkedin' in content_lower):
-                    if ('jobs' in content_lower and 'com' in content_lower and 'search-results' in content_lower):
+                    if ('jobs' in content_lower and 'com' in content_lower and 'search-' in content_lower):
                         if 0.1 <= cx <= 0.9 and 0.05 <= cy <= 0.25:
                             self._linkedin_buttons.append(el)
                             print(f"Found LinkedIn Jobs button: '{el.get('content')}'| BBox: {el.get('bbox')}")

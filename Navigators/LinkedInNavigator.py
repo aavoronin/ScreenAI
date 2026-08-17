@@ -21,6 +21,7 @@ class LinkedInNavigator(BaseNavigator):
         super().__init__(parser, output_dir)
         # Termination condition 1
         self.MAX_CLOSE_BUTTONS = 200
+        self.MAX_CLOSE_BUTTONS_CLICKS = self.MAX_CLOSE_BUTTONS * 2
         self.MAX_SCROLL_DOWNS = 6
         self.VACANCIES_OUTPUT_PATH = config.get_path(
             'vacancies_linkedin_output_path'
@@ -95,6 +96,7 @@ class LinkedInNavigator(BaseNavigator):
 
     def _execute_linkedin_automation(self):
         processed_urls = set()
+        close_button_clicks = 0
         while True:
             # 1. Parse screen
             print("\nParsing screen...")
@@ -117,46 +119,57 @@ class LinkedInNavigator(BaseNavigator):
                 print(f" Reached MAX_CLOSE_BUTTONS ({self.MAX_CLOSE_BUTTONS} unique URLs). Terminating logic.")
                 break
 
+            if close_button_clicks >= self.MAX_CLOSE_BUTTONS_CLICKS:
+                print(f" Reached MAX_CLOSE_BUTTONS_CLICKS ({self.MAX_CLOSE_BUTTONS_CLICKS} clicks). Terminating logic.")
+                break
+
             found_new_url_in_pass = False
             # 2. Loop through close buttons
             print(f"🔄 Processing {len(close_pairs)} close buttons...")
             for pair in close_pairs:
                 if len(processed_urls) >= self.MAX_CLOSE_BUTTONS:
                     break
+                if close_button_clicks >= self.MAX_CLOSE_BUTTONS_CLICKS:
+                    break
                 print(pair)
+
                 close_bbox = pair['close_button']['bbox']
                 # Click left 10% of the close button
                 dx = (close_bbox[2] - close_bbox[0]) * 4
-                dy = (close_bbox[3] - close_bbox[1]) * 0.4
+                dy = (close_bbox[3] - close_bbox[1]) * 0.3
                 self.click_area_near_bbox(close_bbox, dx= -dx, dy=-dy)
+                close_button_clicks += 1
                 # Wait 5 sec
                 time.sleep(5)
                 # Find first bbox in _linkedin_buttons
-                if linkedin_buttons:
-                    first_linkedin_bbox = linkedin_buttons[0]['bbox']
-                    self.click_bbox_center(first_linkedin_bbox)
-                    # Wait for Chrome to gain focus
-                    time.sleep(0.5)
-                    # Send Ctrl+C
-                    pyautogui.hotkey('ctrl', 'c')
-                    time.sleep(0.5)  # Wait for clipboard to update
-                    # Take text from clipboard
-                    clipboard_text = pyperclip.paste().strip()
-                    print(f" 📋 Clipboard text: '{clipboard_text}'")
-                    if clipboard_text:
-                        if clipboard_text not in processed_urls:
-                            processed_urls.add(clipboard_text)
-                            self.process_vacancy(clipboard_text)
-                            found_new_url_in_pass = True
-                            print(f" ✅ New URL added. Total unique URLs: {len(processed_urls)}")
-                        else:
-                            print(f" ⚠️ URL already processed. Skipping.")
+                #if linkedin_buttons:
+                #first_linkedin_bbox = linkedin_buttons[0]['bbox']
+                #self.click_bbox_center(first_linkedin_bbox)
+                pyautogui.hotkey('ctrl', 'l')
+                # Wait for Chrome to gain focus
+                time.sleep(0.5)
+                # Send Ctrl+C
+                pyautogui.hotkey('ctrl', 'c')
+                time.sleep(0.5)  # Wait for clipboard to update
+                # Take text from clipboard
+                clipboard_text = pyperclip.paste().strip()
+                print(f" 📋 Clipboard text: '{clipboard_text}'")
+                if clipboard_text:
+                    if clipboard_text not in processed_urls:
+                        processed_urls.add(clipboard_text)
+                        self.process_vacancy(clipboard_text)
+                        found_new_url_in_pass = True
+                        print(f" ✅ New URL added. Total unique URLs: {len(processed_urls)}")
                     else:
-                        print(" ⚠️ Clipboard text is empty. Doing nothing.")
+                        print(f" ⚠️ URL already processed. Skipping.")
                 else:
-                    print(" ⚠️ No LinkedIn buttons detected. Skipping clipboard logic.")
+                    print(" ⚠️ Clipboard text is empty. Doing nothing.")
                 # Continue loop to next close button
                 continue
+
+            if close_button_clicks >= self.MAX_CLOSE_BUTTONS_CLICKS:
+                print(f" Reached MAX_CLOSE_BUTTONS_CLICKS ({self.MAX_CLOSE_BUTTONS_CLICKS} clicks). Terminating logic.")
+                break
 
             # Termination Condition 3: No new URLs found in this pass
             if not found_new_url_in_pass and not next_buttons:
@@ -210,4 +223,3 @@ class LinkedInNavigator(BaseNavigator):
 
     def analyze_collected(self):
         self.estimator.estimate_vacancies()
-
