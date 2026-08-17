@@ -76,7 +76,7 @@ def concatenate_project_files(project_path, output_filename='combined_output.txt
     DOCUMENT_EXTENSIONS = {
         ".pdf", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx",
         ".txt", ".rtf", ".odt", ".ods", ".odp", ".csv", ".xml",
-        ".json", ".md", ".html", ".htm", ".epub", ".mobi"
+        ".md", ".html", ".htm", ".epub", ".mobi"
     }
 
     exclude_dirs = {'weights', '.idea', '__pycache__', '.venv',

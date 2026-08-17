@@ -121,11 +121,11 @@ class HirifyVacancyEstimator(BaseVacancyEstimator):
         text = self.html_to_formatted_text(html_content, vacancy_url)
         self.save_text(txt_path, text)
 
-        # 6. Update config with parsing results
+        # 6. Update config with parsing results and keywords
         config['parsed_date'] = datetime.now().isoformat()
-        config['parsing_version'] = self.PARSING_VERSION
         config['vacancy_score'] = 0
         config['vacancy_url'] = vacancy_url  # Store the full URL
+        config = self.update_config_with_keywords(config, text)
         self.save_config(json_path, config)
 
         print(f"✅ Completed parsing for job ID: {job_id}")

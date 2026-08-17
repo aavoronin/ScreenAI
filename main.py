@@ -35,8 +35,9 @@ if __name__ == "__main__":
     #nv1.group_vacancies()
     nv2 = HirifyNavigator(OMNIPARSER_REPO_PATH)
     #nv2.group_vacancies()
-    for nv in [
-        nv1,
-        nv2]:
+    for nv in [nv1, nv2]:
+        nv.analyze_collected()
+
+    for nv in [nv1, nv2]:
         #nv.analyze_collected()
         nv.run_on_urls()

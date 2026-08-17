@@ -16,6 +16,7 @@ class BaseNavigator:
         self.screen_width, self.screen_height = pyautogui.size()
         self.estimator: BaseVacancyEstimator = None
         self.VACANCIES_OUTPUT_PATH = None
+        self.saved_pages = []
 
     def get_pixel_center(self, bbox):
         x1, y1, x2, y2 = bbox
@@ -62,7 +63,11 @@ class BaseNavigator:
         pyautogui.press('enter')
         # 5. Wait for the file to finish saving
         time.sleep(10)
-        print(f"✅ Successfully saved MHTML: {dest_file}")
+        self.saved_pages.append(dest_file)
+        print(
+            f"✅ Successfully saved MHTML: {dest_file} "
+            f"(Total: {len(self.saved_pages)})"
+        )
 
     def _is_numlock_on(self):
         return bool(ctypes.windll.user32.GetKeyState(0x90) & 1)
