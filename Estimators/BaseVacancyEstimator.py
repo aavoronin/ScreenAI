@@ -124,7 +124,7 @@ class BaseVacancyEstimator:
         if config is None:
             return True
         current_version = config.get('parsing_version', 0)
-        if current_version < self.PARSING_VERSION:
+        if current_version is None or current_version < self.PARSING_VERSION:
             return True
         return False
 
@@ -245,7 +245,7 @@ class BaseVacancyEstimator:
         Only updates if parsing_version is less than current PARSING_VERSION.
         """
         current_version = config.get('parsing_version', 0)
-        if current_version >= self.PARSING_VERSION:
+        if current_version is None or current_version >= self.PARSING_VERSION:
             return config
 
         estimator_config = self._load_estimator_config()

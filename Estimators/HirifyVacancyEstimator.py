@@ -18,7 +18,7 @@ class HirifyVacancyEstimator(BaseVacancyEstimator):
 
     def __init__(self):
         super().__init__()
-        self.PARSING_VERSION = 2
+        self.PARSING_VERSION = 3
 
     def parse_filename(self, mhtml_path):
         """

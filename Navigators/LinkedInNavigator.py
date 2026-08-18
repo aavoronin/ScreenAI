@@ -172,9 +172,9 @@ class LinkedInNavigator(BaseNavigator):
                 break
 
             # Termination Condition 3: No new URLs found in this pass
-            if not found_new_url_in_pass and not next_buttons:
-                print("🛑 No new URLs found in this pass. Terminating logic.")
-                break
+            #if not found_new_url_in_pass and not next_buttons:
+            #    print("🛑 No new URLs found in this pass. Terminating logic.")
+            #    break
 
             # 3. Check Next button or Scroll Down button
             if next_buttons:
