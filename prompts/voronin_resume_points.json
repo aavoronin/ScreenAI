@@ -143,7 +143,9 @@
     "Data Lineage",
     "Data Governance",
     "Kimball Methodology",
-    "Windows"
+    "Windows",
+    "pandas",
+    "numpy"
   ],
   "required": [
     "MySQL",
