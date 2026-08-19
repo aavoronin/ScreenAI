@@ -130,7 +130,7 @@ class LinkedInVacancyEstimator(BaseVacancyEstimator):
 
         # 6. Update config with parsing results and keywords
         config['parsed_date'] = datetime.now().isoformat()
-        config['vacancy_score'] = 0
+        config['parsing_version'] = str(self.PARSING_VERSION)
         config = self.update_config_with_keywords(config, text)
         self.save_config(json_path, config)
 

@@ -123,7 +123,7 @@ class BaseVacancyEstimator:
         config = self.load_config(json_path)
         if config is None:
             return True
-        current_version = config.get('parsing_version', 0)
+        current_version = self.convert_to_int(config.get('parsing_version', 0))
         if current_version is None or current_version < self.PARSING_VERSION:
             return True
         return False
@@ -239,12 +239,23 @@ class BaseVacancyEstimator:
 
         return sorted(found)
 
+    def convert_to_int(self, text):
+        if text is None:
+            return None
+        try:
+            # Attempt to convert the string to an integer
+            number = int(text)
+            return number
+        except ValueError:
+            return None
+
     def update_config_with_keywords(self, config, text):
         """
         Update config with keywords, countries, and industries extracted from text.
         Only updates if parsing_version is less than current PARSING_VERSION.
         """
-        current_version = config.get('parsing_version', 0)
+        current_version = self.convert_to_int(config.get('parsing_version', 0))
+
         if current_version is None or current_version >= self.PARSING_VERSION:
             return config
 
@@ -263,7 +274,7 @@ class BaseVacancyEstimator:
         config['keywords'] = matched_keywords
         config['countries'] = matched_countries
         config['industries'] = matched_industries
-        config['parsing_version'] = self.PARSING_VERSION
+        config['parsing_version'] = str(self.PARSING_VERSION)
 
         return config
 

@@ -38,6 +38,8 @@ if __name__ == "__main__":
     for nv in [nv1, nv2]:
         nv.analyze_collected()
 
-    for nv in [nv1, nv2]:
+    for nv in [
+            #nv1,
+        nv2]:
         #nv.analyze_collected()
         nv.run_on_urls()

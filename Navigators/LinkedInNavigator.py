@@ -62,6 +62,8 @@ class LinkedInNavigator(BaseNavigator):
         print(f"🔍 Found {len(urls)} URLs to process.")
 
         for i, url in enumerate(urls):
+            if len(url) < 20:
+                continue
             print(f"🌐 [{i + 1}/{len(urls)}] Processing URL: {url}")
 
             # Execute Google Chrome with this URL
@@ -96,13 +98,20 @@ class LinkedInNavigator(BaseNavigator):
 
     def _execute_linkedin_automation(self):
         processed_urls = set()
+        skipped_urls = list()
+        MAX_SKIPPED_URLS = self.MAX_CLOSE_BUTTONS
+        MAX_SKIPPED_URLS_IN_ROW = self.MAX_CLOSE_BUTTONS // 3 + 2
+        skipped_urls_in_row = 0
+
         close_button_clicks = 0
-        while True:
+        general_abort = False
+        while not general_abort:
             # 1. Parse screen
             print("\nParsing screen...")
             for _ in range(10):
                 try:
                     self.check_wait()
+                    self.obtain_screen_size()
                     screenshot = ImageGrab.grab()
                     self.parser.parse_screen(screenshot)
                 except Exception as e:
@@ -159,15 +168,31 @@ class LinkedInNavigator(BaseNavigator):
                         processed_urls.add(clipboard_text)
                         self.process_vacancy(clipboard_text)
                         found_new_url_in_pass = True
+                        skipped_urls_in_row = 0
                         print(f" ✅ New URL added. Total unique URLs: {len(processed_urls)}")
                     else:
-                        print(f" ⚠️ URL already processed. Skipping.")
+                        skipped_urls_in_row += 1
+                        skipped_urls.append(clipboard_text)
+                        print(f" ⚠️ URL already processed. Skipping. "
+                              f"({len(skipped_urls)} skipped, {skipped_urls_in_row} skipped in row)")
+                        if (len(skipped_urls) > MAX_SKIPPED_URLS or
+                                skipped_urls_in_row >= MAX_SKIPPED_URLS_IN_ROW):
+                            print(f" We are waisting time. Aborting.")
+                            general_abort = True
+                        if skipped_urls_in_row > 30 and len(skipped_urls) > 30 and \
+                                len(set(skipped_urls[:30])) < 8:
+                            print(f" We are waisting time. No new recent urls. Aborting.")
+                            general_abort = True
+                        if skipped_urls_in_row > 15 and len(skipped_urls) > 15 and \
+                                len(set(skipped_urls[:15])) < 4:
+                            print(f" We are waisting time. No new recent urls. Aborting.")
+                            general_abort = True
                 else:
                     print(" ⚠️ Clipboard text is empty. Doing nothing.")
                 # Continue loop to next close button
                 continue
 
-            if close_button_clicks >= self.MAX_CLOSE_BUTTONS_CLICKS:
+            if close_button_clicks >= self.MAX_CLOSE_BUTTONS_CLICKS or general_abort:
                 print(f" Reached MAX_CLOSE_BUTTONS_CLICKS ({self.MAX_CLOSE_BUTTONS_CLICKS} clicks). Terminating logic.")
                 break
 

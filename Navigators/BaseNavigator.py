@@ -13,10 +13,13 @@ class BaseNavigator:
         self.parser = parser
         self.output_dir = output_dir
         os.makedirs(self.output_dir, exist_ok=True)
-        self.screen_width, self.screen_height = pyautogui.size()
+        self.obtain_screen_size()
         self.estimator: BaseVacancyEstimator = None
         self.VACANCIES_OUTPUT_PATH = None
         self.saved_pages = []
+
+    def obtain_screen_size(self):
+        self.screen_width, self.screen_height = pyautogui.size()
 
     def get_pixel_center(self, bbox):
         x1, y1, x2, y2 = bbox
