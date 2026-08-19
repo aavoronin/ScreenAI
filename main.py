@@ -37,8 +37,8 @@ if __name__ == "__main__":
     #nv2.group_vacancies()
     for nv in [nv1, nv2]:
         nv.analyze_collected()
-        continue
         nv.AI_estimate_collected()
+        continue
 
     for nv in [
             #nv1,

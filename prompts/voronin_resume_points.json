@@ -55,10 +55,11 @@
     "Machine Learning Data Engineer",
     "MLOps Data Engineer"
 ],
-"Level": ["Senior", "Lead", "Middle+", "Architect"]
+"Level": ["Senior", "Lead", "Middle+", "Architect"],
 "FullTime": null,
 "EmployerCountry": null,
-"CandidateCountry": ["UAE", "Cyprus", "Turkey", "South Africa", "Georgia", "Armenia", "Mexico"],
+"CandidateCountry": ["UAE", "Cyprus", "Turkey", "South Africa", "Georgia",
+  "Armenia", "Mexico", "Portugal", "Spain"],
 "CandidateNoCountry": [],
 "RelocationOffered": "yes",
 "CompanyNoIndustry": [
