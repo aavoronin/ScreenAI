@@ -1,6 +1,7 @@
 import os
 import re
 import json
+import glob
 import email
 from datetime import datetime
 from bs4 import BeautifulSoup
@@ -17,6 +18,8 @@ class BaseVacancyEstimator:
 
     def __init__(self):
         self.PARSING_VERSION = 4
+        self.ESTIMATION_VERSION = 1
+        self.PARSING_PORTION = 20
 
     # ------------------------------------------------------------------
     # MHTML handling
@@ -284,12 +287,50 @@ class BaseVacancyEstimator:
         """
         raise NotImplementedError("Subclasses must implement estimate()")
 
-    def run_AI_estimation(self, folder):
-        portion = 10
+    def AI_estimate_collected(self, folder):
+        print(f"Starting AI estimation for {folder}")
+        valid_files = []
 
-    def AI_estimate_collected(self, vacancies_folder):
-        print(f"Starting AI estimation for {vacancies_folder}")
-        start_wsl_server()
-        stop_wsl_server()
-        print('=' * 60)
+        json_files = glob.glob(os.path.join(folder, '*.json'))
+        for json_path in json_files:
+            txt_path = os.path.splitext(json_path)[0] + '.txt'
+            if not os.path.exists(txt_path):
+                continue
 
+            config = self.load_config(json_path)
+            if config is None:
+                continue
+
+            current_version = self.convert_to_int(config.get('parsing_version', 0))
+            if current_version != self.PARSING_VERSION:
+                continue
+
+            saved_date_str = config.get('saved_date', '1900-01-01')
+            try:
+                saved_date = datetime.fromisoformat(saved_date_str)
+            except (ValueError, TypeError):
+                saved_date = datetime(1900, 1, 1)
+
+            filename = os.path.basename(json_path)
+            match = re.search(r'(\d+)', filename)
+            vacancy_id = match.group(1) if match else filename
+
+            txt_size = os.path.getsize(txt_path)
+
+            valid_files.append({
+                'vacancy_id': vacancy_id,
+                'saved_date': saved_date,
+                'saved_date_str': saved_date_str,
+                'txt_name': os.path.basename(txt_path),
+                'txt_size': txt_size,
+                'json_name': filename
+            })
+
+        valid_files.sort(key=lambda x: x['saved_date'], reverse=True)
+        selected_files = valid_files[:self.PARSING_PORTION]
+
+        for f in selected_files:
+            print(f"vacancyId: {f['vacancy_id']}, saved_date: {f['saved_date_str']}, "
+                  f"txt_name: {f['txt_name']} ({f['txt_size']} bytes), json_name: {f['json_name']}")
+
+        PROMPT_FILE = "prompts/PROMPT_SIMPLE5.txt"
