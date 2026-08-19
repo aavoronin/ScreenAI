@@ -146,6 +146,7 @@
     "Windows",
     "pandas",
     "numpy"
+
   ],
   "required": [
     "MySQL",
@@ -155,7 +156,11 @@
     "NUnit",
     "PyQT",
     "PyQT5",
-    "PyQT6"
+    "PyQT6",
+    "Matplotlib",
+    "Seaborn",
+    "PySpark",
+    "Airflow"
   ],
   "nice-to-have": [
     "JavaScript",
@@ -201,6 +206,8 @@
     "Confluence",
     "Slack",
     "Microsoft Teams",
-    "Linux"
+    "Linux",
+    "pytorch",
+    "tensorflow"
   ]
 }
