@@ -18,8 +18,8 @@ class BaseVacancyEstimator:
     """
 
     PARSING_VERSION = 4
-    ESTIMATION_VERSION = 1
-    PARSING_PORTION = 20
+    ESTIMATION_VERSION = 3
+    PARSING_PORTION = 100
     PROMPT_FILE = "prompts/PROMPT_SIMPLE5.txt"
     RESUME_POINTS_FILE = "prompts/voronin_resume_points.json"
     VACANCY_TIMEOUT = 60 * 20
@@ -186,7 +186,7 @@ class BaseVacancyEstimator:
             'estimator_config.json'
         )
         if not os.path.exists(estimator_config_path):
-            print(f"⚠️ Estimator config not found: {estimator_config_path}")
+            print(f"⚠️ Estimator config not found at: {estimator_config_path}")
             return {}
         try:
             with open(estimator_config_path, 'r', encoding='utf-8') as f:
@@ -209,6 +209,37 @@ class BaseVacancyEstimator:
         except (json.JSONDecodeError, IOError) as e:
             print(f"⚠️ Could not load resume points: {e}")
             return {}
+
+    def _get_all_known_tech_skills(self):
+        """
+        Get a set of all known tech skills (lowercase) from estimator_config.json.
+        Includes keys from 'tech' and all items from 'synonymns'.
+        """
+        estimator_config = self._load_estimator_config()
+        known_skills = set()
+
+        # Tech keys
+        tech_section = estimator_config.get('tech', {})
+        if isinstance(tech_section, dict):
+            for category, items in tech_section.items():
+                if isinstance(items, dict):
+                    for keyword in items.keys():
+                        known_skills.add(keyword.lower())
+                elif isinstance(items, list):
+                    for keyword in items:
+                        known_skills.add(keyword.lower())
+
+        # Synonyms (handle typo 'synonymns' and correct 'synonyms')
+        synonyms_section = estimator_config.get(
+            'synonyms', estimator_config.get('synonymns', [])
+        )
+        if isinstance(synonyms_section, list):
+            for group in synonyms_section:
+                if isinstance(group, list):
+                    for syn in group:
+                        if isinstance(syn, str):
+                            known_skills.add(syn.lower())
+        return known_skills
 
     def _extract_keywords_from_config(self, config_data):
         """Extract keywords, countries, and industries from estimator config."""
@@ -731,14 +762,17 @@ class BaseVacancyEstimator:
                 normalized.append(item.strip())
         return normalized
 
-    def _calculate_score(self, vacancy_json, resume_json):
+    def _calculate_score(self, vacancy_json, resume_json, known_tech_skills):
         """
         Calculate score for a generated vacancy JSON against the resume
-        points JSON. Returns (score, protocol) where protocol is a list
-        of strings explaining each point addition or subtraction.
+        points JSON. Returns (score, protocol, unknown_skills) where
+        protocol is a list of strings explaining each point addition or
+        subtraction, and unknown_skills is a list of (skill, level) tuples
+        for skills not found in resume or known tech skills.
         """
         score = 0
         protocol = []
+        unknown_skills = []
         synonym_map = self._build_synonym_map()
 
         # --- Title matching ---
@@ -835,14 +869,23 @@ class BaseVacancyEstimator:
                     f"vs resume '{v_skill}' {r_level}"
                 )
             else:
-                points = self.MISSING_PENALTY[v_level]
-                score += points
-                protocol.append(
-                    f"{points} points vacancy '{v_skill}' {v_level} "
-                    f"does not exist in resume json"
-                )
+                # Skill not in resume. Check if it's a known tech skill.
+                if v_skill in known_tech_skills:
+                    points = self.MISSING_PENALTY[v_level]
+                    score += points
+                    protocol.append(
+                        f"{points} points vacancy '{v_skill}' {v_level} "
+                        f"does not exist in resume json"
+                    )
+                else:
+                    # Unknown skill: no penalty, just collect it
+                    unknown_skills.append((v_skill, v_level))
+                    protocol.append(
+                        f"0 points vacancy '{v_skill}' {v_level} "
+                        f"is unknown (not in tech/synonyms), no penalty"
+                    )
 
-        return score, protocol
+        return score, protocol, unknown_skills
 
     def _save_estimation_result(
         self, vacancy, estimation_tag, model_id, parsed_json,
@@ -886,6 +929,8 @@ class BaseVacancyEstimator:
         if not resume_json:
             print("⚠️ Could not load resume points. Aborting.")
             return None
+
+        known_tech_skills = self._get_all_known_tech_skills()
 
         # 1. Select valid files
         valid_files = []
@@ -957,7 +1002,7 @@ class BaseVacancyEstimator:
 
         # 3. Start server
         print("\n🚀 Starting AI server...")
-        start_wsl_server()
+        #start_wsl_server()
         time.sleep(5)
         client = TextToTextClient()
 
@@ -989,11 +1034,12 @@ class BaseVacancyEstimator:
             for r in l1_results:
                 if r['success']:
                     parsed = r.get('parsed_json') or {}
-                    score, protocol = self._calculate_score(
-                        parsed, resume_json
+                    score, protocol, unknown = self._calculate_score(
+                        parsed, resume_json, known_tech_skills
                     )
                     r['score'] = score
                     r['protocol'] = protocol
+                    r['unknown_skills'] = unknown
                     # Find corresponding vacancy
                     v = next(
                         (v for v in selected_files
@@ -1008,6 +1054,7 @@ class BaseVacancyEstimator:
                 else:
                     r['score'] = 0
                     r['protocol'] = [f"Generation failed: {r.get('error')}"]
+                    r['unknown_skills'] = []
 
             self._print_level_summary(
                 "LEVEL 1", l1_results, l1_success, l1_failed, l1_time
@@ -1015,6 +1062,22 @@ class BaseVacancyEstimator:
             self._print_model_usage_table(
                 "LEVEL 1", l1_results, l1_model_times
             )
+
+            # Print Level 1 Unknown Skills Summary
+            print(f"\n{'=' * 70}")
+            print("🔍 LEVEL 1 - UNKNOWN SKILLS FOUND IN VACANCIES")
+            print(f"{'=' * 70}")
+            l1_unknown_skills = {}
+            for r in l1_results:
+                if r.get('unknown_skills'):
+                    l1_unknown_skills[r['vacancy_id']] = r['unknown_skills']
+            if l1_unknown_skills:
+                for vid, skills in l1_unknown_skills.items():
+                    skills_str = ", ".join([f"{s} ({l})" for s, l in skills])
+                    print(f"  Vacancy {vid}: {skills_str}")
+            else:
+                print("  No unknown skills found.")
+            print("-" * 70)
 
             result_data['level1'] = {
                 'results': l1_results,
@@ -1064,11 +1127,12 @@ class BaseVacancyEstimator:
                 for r in l2_results:
                     if r['success']:
                         parsed = r.get('parsed_json') or {}
-                        score, protocol = self._calculate_score(
-                            parsed, resume_json
+                        score, protocol, unknown = self._calculate_score(
+                            parsed, resume_json, known_tech_skills
                         )
                         r['score'] = score
                         r['protocol'] = protocol
+                        r['unknown_skills'] = unknown
                         v = next(
                             (v for v in l2_candidates
                              if v['vacancy_id'] == r['vacancy_id']),
@@ -1084,6 +1148,7 @@ class BaseVacancyEstimator:
                         r['protocol'] = [
                             f"Generation failed: {r.get('error')}"
                         ]
+                        r['unknown_skills'] = []
 
                 self._print_level_summary(
                     "LEVEL 2", l2_results, l2_success, l2_failed, l2_time
@@ -1091,6 +1156,22 @@ class BaseVacancyEstimator:
                 self._print_model_usage_table(
                     "LEVEL 2", l2_results, l2_model_times
                 )
+
+                # Print Level 2 Unknown Skills Summary
+                print(f"\n{'=' * 70}")
+                print("🔍 LEVEL 2 - UNKNOWN SKILLS FOUND IN VACANCIES")
+                print(f"{'=' * 70}")
+                l2_unknown_skills = {}
+                for r in l2_results:
+                    if r.get('unknown_skills'):
+                        l2_unknown_skills[r['vacancy_id']] = r['unknown_skills']
+                if l2_unknown_skills:
+                    for vid, skills in l2_unknown_skills.items():
+                        skills_str = ", ".join([f"{s} ({l})" for s, l in skills])
+                        print(f"  Vacancy {vid}: {skills_str}")
+                else:
+                    print("  No unknown skills found.")
+                print("-" * 70)
 
                 result_data['level2'] = {
                     'results': l2_results,
@@ -1115,7 +1196,7 @@ class BaseVacancyEstimator:
         finally:
             # 6. Stop server
             print("\n🛑 Stopping AI server...")
-            stop_wsl_server()
+            #stop_wsl_server()
 
         # 7. Final summary
         overall_time = time.time() - overall_start

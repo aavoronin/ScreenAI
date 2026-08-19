@@ -63,7 +63,9 @@
       "Druid": 1,
       "Hive": 1,
       "Teradata SQL": 1,
-      "DB2 SQL": 1
+      "DB2 SQL": 1,
+      "NoSQL": 1,
+      "Query optimization": 1
     },
     "BI Platforms": {
       "Power BI": 38,
@@ -77,7 +79,9 @@
       "Streamlit": 2,
       "D3.js": 2,
       "Vega": 2,
-      "Yellowfin": 1
+      "Yellowfin": 1,
+      "Excel": 1,
+      "MicroStrategy": 1
     },
     "ETL & Orchestration Tools": {
       "Spark": 66,
@@ -108,7 +112,12 @@
       "Luigi": 1,
       "SAS ETL": 1,
       "Astronomer": 1,
-      "Apache NiFi": 1
+      "Apache NiFi": 1,
+      "Data processing": 1,
+      "Data migrations": 1,
+      "Data pipelines": 1,
+      "Data flow": 1,
+      "Control flow": 1
     },
     "DWH Concepts": {
       "ETL": 66,
@@ -136,7 +145,8 @@
       "3NF": 1,
       "Data Mesh": 1,
       "Data Mart": 1,
-      "Sharding": 1
+      "Sharding": 1,
+      "Data engineering": 1
     },
     "AI/ML/Data Science Concepts": {
       "Machine Learning": 73,
@@ -209,7 +219,8 @@
       "IBM Cloud": 1,
       "Alibaba Cloud": 1,
       "DigitalOcean": 1,
-      "VMware": 1
+      "VMware": 1,
+      "Cloud computing": 1
     },
     "Message Brokers & Streaming": {
       "Kafka": 53,
@@ -998,7 +1009,18 @@
     ["FAISS", "Facebook AI Similarity Search"],
     ["Core ML", "CoreML"],
     ["TFLite", "TensorFlow Lite"],
-    ["WASM", "WebAssembly"]
+    ["WASM", "WebAssembly"],
+    ["NoSQL", "Not Only SQL"],
+    ["Excel", "Microsoft Excel", "MS Excel"],
+    ["Data processing", "Data Processing"],
+    ["Data migrations", "Data Migration"],
+    ["Data pipelines", "Data Pipeline"],
+    ["Data flow", "Data Flow"],
+    ["Control flow", "Control Flow"],
+    ["Cloud computing", "Cloud Computing"],
+    ["Data engineering", "Data Engineering"],
+    ["MicroStrategy", "Microstrategy"],
+    ["Query optimization", "Query Optimization"]
   ],
   "industries": [
     ["FinTech", "Financial Technology", "Finance", "Banking", "Digital Banking", "Payments", "Open Banking", "BNPL", "P2P Payments", "Credit Cards"],

@@ -1,5 +1,5 @@
 {
-"Title": [
+  "Title": [
     "Data Engineer",
     "Data Developer",
     "Data Architect",
@@ -54,15 +54,14 @@
     "Backend Developer - Data",
     "Machine Learning Data Engineer",
     "MLOps Data Engineer"
-],
-"Level": ["Senior", "Lead", "Middle+", "Architect"],
-"FullTime": null,
-"EmployerCountry": null,
-"CandidateCountry": ["UAE", "Cyprus", "Turkey", "South Africa", "Georgia",
-  "Armenia", "Mexico", "Portugal", "Spain"],
-"CandidateNoCountry": [],
-"RelocationOffered": "yes",
-"CompanyNoIndustry": [
+  ],
+  "Level": ["Senior", "Lead", "Middle+", "Architect"],
+  "FullTime": null,
+  "EmployerCountry": null,
+  "CandidateCountry": ["UAE", "Cyprus", "Turkey", "South Africa", "Georgia", "Armenia", "Mexico", "Portugal", "Spain"],
+  "CandidateNoCountry": [],
+  "RelocationOffered": "yes",
+  "CompanyNoIndustry": [
     "Adult",
     "Adult Content",
     "Adult Entertainment",
@@ -103,15 +102,15 @@
     "Interactive Entertainment",
     "Video Games",
     "Gaming Industry"
-],
-"CompanySize": null,
-"MinYearsExperience": 23,
-"MaxYearsExperience": null,
-"EducationLevel": "master",
-"CertificationsRequired": ["DP-700", "AI-900", "AI-901"],
-"SecurityClearance": "none",
-"RequiredLanguages": ["English", "Russian"],
-"expert": [
+  ],
+  "CompanySize": null,
+  "MinYearsExperience": 23,
+  "MaxYearsExperience": null,
+  "EducationLevel": "master",
+  "CertificationsRequired": ["DP-700", "AI-900", "AI-901"],
+  "SecurityClearance": "none",
+  "RequiredLanguages": ["English", "Russian"],
+  "expert": [
     "Python",
     "SQL",
     "C#",
@@ -145,8 +144,15 @@
     "Kimball Methodology",
     "Windows",
     "pandas",
-    "numpy"
-
+    "numpy",
+    "Excel",
+    "Data processing",
+    "Data migrations",
+    "Data pipelines",
+    "Data flow",
+    "Control flow",
+    "Data engineering",
+    "Query optimization"
   ],
   "required": [
     "MySQL",
@@ -208,6 +214,8 @@
     "Microsoft Teams",
     "Linux",
     "pytorch",
-    "tensorflow"
+    "tensorflow",
+    "NoSQL",
+    "Cloud computing"
   ]
 }

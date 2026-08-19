@@ -3,6 +3,7 @@ import time
 from Navigators.HirifyNavigator import HirifyNavigator
 from Navigators.LinkedInNavigator import LinkedInNavigator
 from Screen.HirifyScreenParser import HirifyScreenParser
+from ai_clients.start_server import start_wsl_server, stop_wsl_server
 from project_to_file.project_to_file import project_to_file_main
 import torch
 from llama_cpp import llama_supports_gpu_offload
@@ -35,10 +36,14 @@ if __name__ == "__main__":
     #nv1.group_vacancies()
     nv2 = HirifyNavigator(OMNIPARSER_REPO_PATH)
     #nv2.group_vacancies()
+    start_wsl_server()
     for nv in [nv1, nv2]:
         nv.analyze_collected()
         nv.AI_estimate_collected()
+        nv.AI_estimate_collected()
+        break
         continue
+    stop_wsl_server()
 
     for nv in [
             #nv1,
