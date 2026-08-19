@@ -113,7 +113,7 @@ class HirifyNavigator(BaseNavigator):
                 else:
                     self.click_bbox_center(bbox)
 
-                time.sleep(5)  # Wait for vacancy page to load
+                time.sleep(10)  # Wait for vacancy page to load
 
                 current_url = self._get_current_url()
                 if current_url and 'hirify.me/jobs/' in current_url:
@@ -189,12 +189,12 @@ class HirifyNavigator(BaseNavigator):
 
     def _navigate_back_to_list(self):
         """Navigate back to the vacancy list page."""
-        if self.parser._back_button:
-            bbox = self.parser._back_button.get('bbox', [])
-            if len(bbox) == 4:
-                print("  🖱️ Clicking detected Back button on screen.")
-                self.click_bbox_center(bbox)
-                return
+        #if self.parser._back_button:
+        #    bbox = self.parser._back_button.get('bbox', [])
+        #    if len(bbox) == 4:
+        #       print("  🖱️ Clicking detected Back button on screen.")
+        #        self.click_bbox_center(bbox)
+        #        return
 
         print("  🖱️ No Back button detected on screen, using browser back (Alt+Left).")
         pyautogui.hotkey('alt', 'left')

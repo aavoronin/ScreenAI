@@ -2,10 +2,12 @@ import os
 import re
 import ctypes
 import time
+from asyncio import start_server
 from datetime import datetime
 import pyautogui
 import pyperclip
 from Estimators.BaseVacancyEstimator import BaseVacancyEstimator
+from ai_clients.start_server import start_wsl_server, stop_wsl_server
 
 
 class BaseNavigator:
@@ -71,6 +73,9 @@ class BaseNavigator:
             f"✅ Successfully saved MHTML: {dest_file} "
             f"(Total: {len(self.saved_pages)})"
         )
+        for _ in range(5):
+            pyautogui.press('esc')
+            time.sleep(0.1)
 
     def _is_numlock_on(self):
         return bool(ctypes.windll.user32.GetKeyState(0x90) & 1)
@@ -188,3 +193,7 @@ class BaseNavigator:
         chunk_size = len(chunk_content.encode('utf-8'))
         print(f"📦 Chunk: {chunk_name} | Size: {chunk_size} bytes | "
               f"Files: {len(chunk)}")
+
+    def AI_estimate_collected(self):
+        self.estimator.AI_estimate_collected(self.VACANCIES_OUTPUT_PATH)
+

@@ -18,7 +18,6 @@ class HirifyVacancyEstimator(BaseVacancyEstimator):
 
     def __init__(self):
         super().__init__()
-        self.PARSING_VERSION = 3
 
     def parse_filename(self, mhtml_path):
         """
@@ -37,7 +36,7 @@ class HirifyVacancyEstimator(BaseVacancyEstimator):
         """Tags that should be removed for Hirify vacancy pages."""
         return ['script', 'style', 'noscript', 'svg', 'link', 'meta', 'iframe']
 
-    def html_to_formatted_text(self, html_content, vacancy_url: str = None):
+    def html_to_formatted_text(self, html_content):
         """
         Convert Hirify vacancy HTML to formatted plain text.
         Truncates the text at "Similar vacancies" to remove footer noise
@@ -55,9 +54,9 @@ class HirifyVacancyEstimator(BaseVacancyEstimator):
         text_parts = []
 
         # Add vacancy URL as first line if provided
-        if vacancy_url:
-            text_parts.append(f"Vacancy URL: {vacancy_url}")
-            text_parts.append("")  # Empty line for separation
+        #if vacancy_url:
+        #    text_parts.append(f"Vacancy URL: {vacancy_url}")
+        #    text_parts.append("")  # Empty line for separation
 
         # Extract all visible text
         visible_text = self.extract_visible_text(str(soup))
@@ -80,7 +79,7 @@ class HirifyVacancyEstimator(BaseVacancyEstimator):
 
         return text.strip()
 
-    def estimate(self, mhtml_path, vacancy_url: str = None):
+    def estimate(self, mhtml_path, url: str = ""):
         """
         Estimate a Hirify vacancy from its MHTML file.
         vacancy_url should be the full URL from the browser (e.g., https://hirify.me/jobs/97028-...)
@@ -118,13 +117,14 @@ class HirifyVacancyEstimator(BaseVacancyEstimator):
         # 5. Full parsing
         print(f" Performing full parsing for: {mhtml_path}")
         html_content = self.open_mhtml(mhtml_path)
-        text = self.html_to_formatted_text(html_content, vacancy_url)
+        text = self.html_to_formatted_text(html_content)
         self.save_text(txt_path, text)
 
         # 6. Update config with parsing results and keywords
         config['parsed_date'] = datetime.now().isoformat()
-        config['vacancy_score'] = 0
-        config['vacancy_url'] = vacancy_url  # Store the full URL
+        config['parsing_version'] = str(self.PARSING_VERSION)
+        if url:
+            config['url'] = url
         config = self.update_config_with_keywords(config, text)
         self.save_config(json_path, config)
 
@@ -157,6 +157,6 @@ class HirifyVacancyEstimator(BaseVacancyEstimator):
             existing_config = self.load_config(json_path)
             vacancy_url = existing_config.get('vacancy_url') if existing_config else None
 
-            self.estimate(mhtml_path, vacancy_url)
+            self.estimate(mhtml_path)
 
         print("✅ Finished estimating all vacancies.")

@@ -5,6 +5,8 @@ import email
 from datetime import datetime
 from bs4 import BeautifulSoup
 
+from ai_clients.start_server import start_wsl_server, stop_wsl_server
+
 
 class BaseVacancyEstimator:
     """
@@ -14,7 +16,7 @@ class BaseVacancyEstimator:
     """
 
     def __init__(self):
-        self.PARSING_VERSION = 2
+        self.PARSING_VERSION = 4
 
     # ------------------------------------------------------------------
     # MHTML handling
@@ -254,11 +256,6 @@ class BaseVacancyEstimator:
         Update config with keywords, countries, and industries extracted from text.
         Only updates if parsing_version is less than current PARSING_VERSION.
         """
-        current_version = self.convert_to_int(config.get('parsing_version', 0))
-
-        if current_version is None or current_version >= self.PARSING_VERSION:
-            return config
-
         estimator_config = self._load_estimator_config()
         if not estimator_config:
             return config
@@ -281,8 +278,18 @@ class BaseVacancyEstimator:
     # ------------------------------------------------------------------
     # Main entry point (to be overridden by subclasses)
     # ------------------------------------------------------------------
-    def estimate(self, mhtml_path):
+    def estimate(self, mhtml_path, url: str):
         """
         Main estimation method. Subclasses must implement this.
         """
         raise NotImplementedError("Subclasses must implement estimate()")
+
+    def run_AI_estimation(self, folder):
+        portion = 10
+
+    def AI_estimate_collected(self, vacancies_folder):
+        print(f"Starting AI estimation for {vacancies_folder}")
+        start_wsl_server()
+        stop_wsl_server()
+        print('=' * 60)
+

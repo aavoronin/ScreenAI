@@ -18,7 +18,6 @@ class LinkedInVacancyEstimator(BaseVacancyEstimator):
 
     def __init__(self):
         super().__init__()
-        self.PARSING_VERSION = 2
 
     # ------------------------------------------------------------------
     # Filename parsing
@@ -81,7 +80,7 @@ class LinkedInVacancyEstimator(BaseVacancyEstimator):
     # ------------------------------------------------------------------
     # Main entry point
     # ------------------------------------------------------------------
-    def estimate(self, mhtml_path):
+    def estimate(self, mhtml_path, url: str = ""):
         """
         Estimate a LinkedIn vacancy from its MHTML file.
 
@@ -131,6 +130,8 @@ class LinkedInVacancyEstimator(BaseVacancyEstimator):
         # 6. Update config with parsing results and keywords
         config['parsed_date'] = datetime.now().isoformat()
         config['parsing_version'] = str(self.PARSING_VERSION)
+        if url:
+            config['url'] = url
         config = self.update_config_with_keywords(config, text)
         self.save_config(json_path, config)
 

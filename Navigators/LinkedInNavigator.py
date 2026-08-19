@@ -244,7 +244,7 @@ class LinkedInNavigator(BaseNavigator):
             # Delegate the actual Ctrl+S / typing / Enter to the base class
             self.save_browser_page_as_mhtml(dest_file)
         # 5. Let the estimator handle parsing / config / scoring
-        self.estimator.estimate(dest_file)
+        self.estimator.estimate(dest_file, url)
 
     def analyze_collected(self):
         self.estimator.estimate_vacancies()
