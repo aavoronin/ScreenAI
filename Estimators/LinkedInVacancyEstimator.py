@@ -6,7 +6,6 @@ from bs4 import BeautifulSoup
 from Estimators.BaseVacancyEstimator import BaseVacancyEstimator
 from cfg.cfg import Config
 
-
 class LinkedInVacancyEstimator(BaseVacancyEstimator):
     """
     Estimator specialized for LinkedIn vacancy MHTML files.
@@ -15,7 +14,6 @@ class LinkedInVacancyEstimator(BaseVacancyEstimator):
     - Apply LinkedIn-specific HTML cleaning rules
     - Manage the per-vacancy JSON config
     """
-
     def __init__(self):
         super().__init__()
 
@@ -49,10 +47,8 @@ class LinkedInVacancyEstimator(BaseVacancyEstimator):
         """
         # 1. Remove invisible content (scripts, styles, etc.)
         html_content = self.strip_tags(html_content, self.get_tags_to_remove())
-
         # 2. Remove explicitly hidden elements
         html_content = self.remove_hidden_elements(html_content)
-
         # 3. LinkedIn-specific link handling via BeautifulSoup
         soup = BeautifulSoup(html_content, 'html.parser')
         for a in soup.find_all('a'):
@@ -62,19 +58,15 @@ class LinkedInVacancyEstimator(BaseVacancyEstimator):
                 a.replace_with(f"{text} {href}" if text else href)
             else:
                 a.replace_with(text)
-
         # 4. Extract visible text (generic)
         text = self.extract_visible_text(str(soup))
-
         # 5. LinkedIn-specific: trim header/footer noise
         start_marker = "Get job alerts for this search"
         if start_marker in text:
             text = text[text.index(start_marker) + len(start_marker):]
-
         end_marker = "Job search faster with Premium"
         if end_marker in text:
             text = text[:text.index(end_marker)]
-
         return text.strip()
 
     # ------------------------------------------------------------------
@@ -83,7 +75,6 @@ class LinkedInVacancyEstimator(BaseVacancyEstimator):
     def estimate(self, mhtml_path, url: str = ""):
         """
         Estimate a LinkedIn vacancy from its MHTML file.
-
         Logic:
         - If JSON config doesn't exist -> full parsing
         - If JSON exists and parsing_version == PARSING_VERSION -> skip
@@ -96,19 +87,16 @@ class LinkedInVacancyEstimator(BaseVacancyEstimator):
         if not vacancy_type or not job_id:
             print(f"⚠️ Could not parse filename: {mhtml_path}")
             return
-
         print(f"🔍 Processing {vacancy_type} vacancy, job ID: {job_id}")
-
-        # 2. Derive sibling paths (.txt and .json)
+        # 2. Derive sibling paths (.txt, .json, and .html)
         base_path = os.path.splitext(mhtml_path)[0]
         txt_path = base_path + '.txt'
         json_path = base_path + '.json'
-
+        html_path = base_path + '.html'
         # 3. Decide whether we need to (re)parse
         if not self.should_parse(json_path):
             print(f"✅ Already parsed with current version. Skipping: {mhtml_path}")
             return
-
         # 4. Load existing config or create a fresh one
         config = self.load_config(json_path)
         if config is None:
@@ -120,21 +108,21 @@ class LinkedInVacancyEstimator(BaseVacancyEstimator):
             except OSError:
                 saved_date = datetime.now().isoformat()
             config = self.create_initial_config(saved_date)
-
         # 5. Full parsing
         print(f"🔄 Performing full parsing for: {mhtml_path}")
         html_content = self.open_mhtml(mhtml_path)
         text = self.html_to_formatted_text(html_content)
         self.save_text(txt_path, text)
-
         # 6. Update config with parsing results and keywords
         config['parsed_date'] = datetime.now().isoformat()
         config['parsing_version'] = str(self.PARSING_VERSION)
+        config['json_path'] = json_path
+        config['txt_path'] = txt_path
+        config['html_path'] = html_path
         if url:
             config['url'] = url
         config = self.update_config_with_keywords(config, text)
         self.save_config(json_path, config)
-
         print(f"✅ Completed parsing for job ID: {job_id}")
 
     # ------------------------------------------------------------------
@@ -147,22 +135,16 @@ class LinkedInVacancyEstimator(BaseVacancyEstimator):
         """
         config = Config()
         vacancies_dir = config.get_path('vacancies_linkedin_output_path')
-
         if not os.path.exists(vacancies_dir):
             print(f"⚠️ Vacancies directory does not exist: {vacancies_dir}")
             return
-
         mhtml_files = glob.glob(os.path.join(vacancies_dir, '*.mhtml'))
-
         if not mhtml_files:
             print(f"ℹ️ No .mhtml files found in {vacancies_dir}")
             return
-
         print(f"🔍 Found {len(mhtml_files)} .mhtml file(s) to estimate.")
-
         for i, mhtml_path in enumerate(mhtml_files):
             if i % 10 == 0:
                 print(f"{i:<6} files estimated")
             self.estimate(mhtml_path)
-
         print("✅ Finished estimating all vacancies.")

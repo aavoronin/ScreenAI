@@ -88,6 +88,7 @@ class VacancyScoring:
         score = 0
         synonym_map = self._build_synonym_map()
 
+        # --- Title matching ---
         vacancy_title = (vacancy_json.get('Title') or '').strip()
         resume_titles = self.resume_json.get('Title', []) or []
         title_matched = False
@@ -149,6 +150,7 @@ class VacancyScoring:
                 "msg": f"+0 points vacancy title no match: '{vacancy_title}'"
             })
 
+        # --- CompanyNoIndustry penalty ---
         vacancy_industry = (vacancy_json.get('CompanyIndustry') or '').strip()
         no_industries = self.resume_json.get('CompanyNoIndustry', []) or []
         for ni in no_industries:
@@ -169,6 +171,50 @@ class VacancyScoring:
                 })
                 break
 
+        # --- Security Clearance penalty ---
+        vacancy_clearance_raw = vacancy_json.get('SecurityClearance')
+        if vacancy_clearance_raw is not None:
+            vacancy_clearance = str(vacancy_clearance_raw).strip()
+            if vacancy_clearance and vacancy_clearance.lower() != 'none':
+                points = -100
+                score += points
+                protocol_entries.append({
+                    "left": vacancy_clearance,
+                    "left_field": "SecurityClearance",
+                    "score": points,
+                    "score_percentile": 0.0,
+                    "right": "none",
+                    "right_field": "SecurityClearance",
+                    "msg": f"{points} points vacancy requires security clearance: '{vacancy_clearance}'"
+                })
+
+        # --- RequiredLanguages penalty ---
+        vacancy_languages = vacancy_json.get('RequiredLanguages', []) or []
+        resume_languages = [
+            str(l).strip().lower()
+            for l in (self.resume_json.get('RequiredLanguages', []) or [])
+            if isinstance(l, str)
+        ]
+
+        if vacancy_languages:
+            for lang in vacancy_languages:
+                if not isinstance(lang, str):
+                    continue
+                lang_str = str(lang).strip()
+                if lang_str.lower() not in resume_languages:
+                    points = -20
+                    score += points
+                    protocol_entries.append({
+                        "left": lang_str,
+                        "left_field": "RequiredLanguages",
+                        "score": points,
+                        "score_percentile": 0.0,
+                        "right": "",
+                        "right_field": "RequiredLanguages",
+                        "msg": f"{points} points vacancy requires language '{lang_str}' not in resume"
+                    })
+
+        # --- Skills matching (expert / required / nice-to-have) ---
         levels = ["expert", "required", "nice-to-have"]
         vacancy_by_level = {}
         resume_by_level = {}
