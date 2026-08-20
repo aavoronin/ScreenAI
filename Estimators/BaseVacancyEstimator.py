@@ -18,7 +18,7 @@ class BaseVacancyEstimator:
     """
 
     PARSING_VERSION = 4
-    ESTIMATION_VERSION = 4
+    ESTIMATION_VERSION = 5
     PARSING_PORTION = 50
     PROMPT_FILE = "prompts/PROMPT_SIMPLE5.txt"
     RESUME_POINTS_FILE = "prompts/voronin_resume_points.json"
@@ -42,16 +42,19 @@ class BaseVacancyEstimator:
     SCORE_TITLE_80 = int(16 * TITLE_ADJUSTMENT)
     SCORE_TITLE_60 = int(12 * TITLE_ADJUSTMENT)
     SCORE_INDUSTRY_PENALTY = -100
+
     PROFICIENCY_SCORE_MATRIX = {
         "expert":       {"expert": 6, "required": 4, "nice-to-have": 1},
         "required":     {"expert": 4, "required": 5, "nice-to-have": 1},
         "nice-to-have": {"expert": 1, "required": 1, "nice-to-have": 2},
     }
+
     MISSING_PENALTY = {
         "expert": -6,
         "required": -5,
         "nice-to-have": -1,
     }
+
     LEVEL_2_MIN_SCORE = 20
 
     def __init__(self):
@@ -240,6 +243,7 @@ class BaseVacancyEstimator:
                     for syn in group:
                         if isinstance(syn, str):
                             known_skills.add(syn.lower())
+
         return known_skills
 
     def _extract_keywords_from_config(self, config_data):
@@ -385,11 +389,13 @@ class BaseVacancyEstimator:
         if not text or not isinstance(text, str):
             return None
         text = text.strip()
+
         # 1. Direct parse
         try:
             return json.loads(text)
         except (json.JSONDecodeError, ValueError):
             pass
+
         # 2. Extract from ```json ... ``` or ``` ... ``` block
         match = re.search(
             r'```(?:json)?\s*(\{.*?\})\s*```',
@@ -400,6 +406,7 @@ class BaseVacancyEstimator:
                 return json.loads(match.group(1))
             except (json.JSONDecodeError, ValueError):
                 pass
+
         # 3. Find first balanced { ... } block
         start = text.find('{')
         if start != -1:
@@ -521,9 +528,9 @@ class BaseVacancyEstimator:
         Returns list of result dicts, one per vacancy.
         """
         results = []
-        for vi, v in enumerate(vacancies):
+        for v in vacancies:
             vid = v['vacancy_id']
-            print(f"{vi:<6} Vacancy {vid} -> {model_id}")
+            print(f"  📄 Vacancy {vid} -> {model_id}")
             vacancy_text = self._read_vacancy_text(v['txt_path'])
             if not vacancy_text:
                 results.append({
@@ -537,6 +544,7 @@ class BaseVacancyEstimator:
                     'error': 'empty_text'
                 })
                 continue
+
             result = self._apply_prompt_to_vacancy(
                 client, model_id, prompt_text, vacancy_text
             )
@@ -544,6 +552,7 @@ class BaseVacancyEstimator:
             result['txt_name'] = v['txt_name']
             result['model_id'] = model_id
             results.append(result)
+
             status = "✅" if result['success'] else "❌"
             err = f" | Error: {result['error']}" if result['error'] else ""
             print(
@@ -568,6 +577,7 @@ class BaseVacancyEstimator:
         print(f"🎯 {level_name} - {len(vacancies)} vacancies, "
               f"{len(models)} model(s)")
         print(f"{'=' * 70}")
+
         all_results = []
         model_times = {}
         remaining = list(vacancies)
@@ -639,6 +649,7 @@ class BaseVacancyEstimator:
         )
         print(header)
         print("-" * 70)
+
         # Group results by vacancy_id, show the successful one (or last)
         by_vacancy = {}
         for r in all_results:
@@ -671,6 +682,7 @@ class BaseVacancyEstimator:
         print("-" * 70)
         print(f"{'Model':<55} | {'Time':>8} | Calls")
         print("-" * 70)
+
         # Aggregate per model
         by_model = {}
         for r in all_results:
@@ -705,6 +717,7 @@ class BaseVacancyEstimator:
                 for skill, level in r['unknown_skills']:
                     key = f"{skill} ({level})"
                     skill_counts[key] = skill_counts.get(key, 0) + 1
+
         if skill_counts:
             # Sort by count descending, then alphabetically
             sorted_skills = sorted(
@@ -712,7 +725,7 @@ class BaseVacancyEstimator:
             )
             for skill_key, count in sorted_skills:
                 print(f"  {skill_key}: {count} vacancy(ies)")
-            print(f"\n  Total unique unknown skills: {len(skill_counts)}")
+            print(f"\nTotal unique unknown skills: {len(skill_counts)}")
         else:
             print("  No unknown skills found.")
         print("-" * 70)
@@ -732,12 +745,14 @@ class BaseVacancyEstimator:
             return 0.0
         s1, s2 = s1.lower(), s2.lower()
         len1, len2 = len(s1), len(s2)
+
         # Create distance matrix
         matrix = [[0] * (len2 + 1) for _ in range(len1 + 1)]
         for i in range(len1 + 1):
             matrix[i][0] = i
         for j in range(len2 + 1):
             matrix[0][j] = j
+
         for i in range(1, len1 + 1):
             for j in range(1, len2 + 1):
                 cost = 0 if s1[i - 1] == s2[j - 1] else 1
@@ -746,15 +761,16 @@ class BaseVacancyEstimator:
                     matrix[i][j - 1] + 1,
                     matrix[i - 1][j - 1] + cost
                 )
+
         distance = matrix[len1][len2]
         max_len = max(len1, len2)
         return 1.0 - (distance / max_len) if max_len > 0 else 1.0
 
     def _build_synonym_map(self):
         """
-        Build a mapping synonym (lowercase) -> canonical (first item in group).
+        Build a mapping synonym (lowercase) -> canonical (lowercase).
         Used to normalize skill names so that e.g. 'Transact-SQL' and
-        'Transact SQL' both become 'T-SQL'.
+        'Transact SQL' both become 't-sql'.
         """
         estimator_config = self._load_estimator_config()
         synonyms_section = estimator_config.get(
@@ -764,16 +780,16 @@ class BaseVacancyEstimator:
         if isinstance(synonyms_section, list):
             for group in synonyms_section:
                 if isinstance(group, list) and len(group) > 0:
-                    canonical = group[0]
+                    canonical = group[0].strip().lower()
                     for syn in group:
                         if isinstance(syn, str):
-                            synonym_map[syn.lower()] = canonical
+                            synonym_map[syn.strip().lower()] = canonical
         return synonym_map
 
     def _normalize_by_synonyms(self, items, synonym_map):
         """
         Normalize a list of skill names using the synonym map.
-        Each item is replaced by the canonical (first) synonym if found.
+        Each item is replaced by the canonical (lowercase) synonym if found.
         Comparison is case-insensitive.
         """
         if not items:
@@ -786,7 +802,7 @@ class BaseVacancyEstimator:
             if item_lower in synonym_map:
                 normalized.append(synonym_map[item_lower])
             else:
-                normalized.append(item.strip())
+                normalized.append(item_lower)
         return normalized
 
     def _calculate_score(self, vacancy_json, resume_json, known_tech_skills):
@@ -834,6 +850,7 @@ class BaseVacancyEstimator:
                 )
                 title_matched = True
                 break
+
         if not title_matched and vacancy_title:
             protocol.append(
                 f"+0 points vacancy title no match: '{vacancy_title}'"
@@ -861,14 +878,15 @@ class BaseVacancyEstimator:
         levels = ["expert", "required", "nice-to-have"]
         vacancy_by_level = {}
         resume_by_level = {}
+
         for level in levels:
             vacancy_by_level[level] = set(
-                s.lower() for s in self._normalize_by_synonyms(
+                self._normalize_by_synonyms(
                     vacancy_json.get(level, []) or [], synonym_map
                 )
             )
             resume_by_level[level] = set(
-                s.lower() for s in self._normalize_by_synonyms(
+                self._normalize_by_synonyms(
                     resume_json.get(level, []) or [], synonym_map
                 )
             )
@@ -966,19 +984,23 @@ class BaseVacancyEstimator:
             txt_path = os.path.splitext(json_path)[0] + '.txt'
             if not os.path.exists(txt_path):
                 continue
+
             config = self.load_config(json_path)
             if config is None:
                 continue
+
             current_version = self.convert_to_int(
                 config.get('parsing_version', 0)
             )
             if current_version != self.PARSING_VERSION:
                 continue
+
             est_version = self.convert_to_int(
                 config.get('estimation_version', 0)
             )
             if est_version is not None and est_version >= self.ESTIMATION_VERSION:
                 continue
+
             saved_date_str = config.get('saved_date', '1900-01-01')
             try:
                 saved_date = datetime.fromisoformat(saved_date_str)
@@ -1067,6 +1089,7 @@ class BaseVacancyEstimator:
                     r['score'] = score
                     r['protocol'] = protocol
                     r['unknown_skills'] = unknown
+
                     # Find corresponding vacancy
                     v = next(
                         (v for v in selected_files
@@ -1145,6 +1168,7 @@ class BaseVacancyEstimator:
                         r['score'] = score
                         r['protocol'] = protocol
                         r['unknown_skills'] = unknown
+
                         v = next(
                             (v for v in l2_candidates
                              if v['vacancy_id'] == r['vacancy_id']),
