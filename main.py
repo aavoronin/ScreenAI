@@ -36,13 +36,11 @@ if __name__ == "__main__":
     #nv1.group_vacancies()
     nv2 = HirifyNavigator(OMNIPARSER_REPO_PATH)
     #nv2.group_vacancies()
-    start_wsl_server()
     for nv in [nv1, nv2]:
         nv.analyze_collected()
     for nv in [nv1, nv2]:
         for _ in range(8):
             nv.AI_estimate_collected()
-    stop_wsl_server()
 
     for nv in [
             #nv1,
