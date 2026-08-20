@@ -1,0 +1,323 @@
+import json
+import re
+import sys
+import time
+from datetime import datetime
+
+from ai_clients.start_server import stop_wsl_server, start_wsl_server
+
+
+class AI_Helper:
+
+
+
+    def __init__(self, client, prompt_text, level_1_models, level_2_models, vacancy_timeout, warmup_timeout):
+        self.client = client
+        self.prompt_text = prompt_text
+        self.level_1_models = level_1_models
+        self.level_2_models = level_2_models
+        self.vacancy_timeout = vacancy_timeout
+        self.warmup_timeout = warmup_timeout
+
+    @staticmethod
+    def _parse_json_safely(text):
+        if not text or not isinstance(text, str):
+            return None
+        text = text.strip()
+        try:
+            return json.loads(text)
+        except (json.JSONDecodeError, ValueError):
+            pass
+        match = re.search(r'```(?:json)?\s*(\{.*?\})\s*```', text, re.DOTALL | re.IGNORECASE)
+        if match:
+            try:
+                return json.loads(match.group(1))
+            except (json.JSONDecodeError, ValueError):
+                pass
+        start = text.find('{')
+        if start != -1:
+            depth = 0
+            in_string = False
+            escape = False
+            for i in range(start, len(text)):
+                ch = text[i]
+                if escape:
+                    escape = False
+                    continue
+                if ch == '\\':
+                    escape = True
+                    continue
+                if ch == '"':
+                    in_string = not in_string
+                    continue
+                if in_string:
+                    continue
+                if ch == '{':
+                    depth += 1
+                elif ch == '}':
+                    depth -= 1
+                    if depth == 0:
+                        try:
+                            return json.loads(text[start:i + 1])
+                        except (json.JSONDecodeError, ValueError):
+                            break
+        return None
+
+    @staticmethod
+    def _read_vacancy_text(txt_path):
+        try:
+            with open(txt_path, 'r', encoding='utf-8') as f:
+                return f.read()
+        except (IOError, OSError) as e:
+            print(f"⚠️ Could not read {txt_path}: {e}")
+            return ""
+
+    def _warmup_model(self, model_id):
+        start_time = time.time()
+        max_retries = 5
+        for attempt in range(1, max_retries + 1):
+            ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            print(f"  🔥 [{ts}] Warming up {model_id} (Attempt {attempt}/{max_retries})")
+            try:
+                self.client.generate(model_id, "2+2", model_limit_seconds=self.warmup_timeout)
+                duration = time.time() - start_time
+                ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                print(f"  ✅ [{ts}] Warmup done in {duration:.2f}s")
+                return
+            except Exception as e:
+                print(f"  ⚠️ Warmup failed on attempt {attempt}: {e}")
+                if attempt < max_retries:
+                    print("  🔄 Restarting server and waiting 30 seconds before retrying...")
+                    try:
+                        stop_wsl_server()
+                    except Exception as stop_e:
+                        print(f"  ⚠️ Error stopping server: {stop_e}")
+                    time.sleep(30)
+                    try:
+                        start_wsl_server()
+                    except Exception as start_e:
+                        print(f"  ⚠️ Error starting server: {start_e}")
+                    time.sleep(30)
+                else:
+                    print(f"  ❌ Warmup failed after {max_retries} attempts. Exiting.")
+                    sys.exit(1)
+
+    def _apply_prompt_to_vacancy(self, model_id, prompt_text, vacancy_text):
+        full_prompt = prompt_text + "\n" + vacancy_text
+        original_prompt_size = len(full_prompt)
+        vacancy_size = len(vacancy_text)
+        max_retries = 10
+        current_prompt = full_prompt
+        total_start_time = time.time()
+        last_error = None
+
+        for attempt in range(max_retries + 1):
+            try:
+                response = self.client.generate(model_id, current_prompt, model_limit_seconds=self.vacancy_timeout)
+                generated_text = response.get("generated_text", "")
+                if not isinstance(generated_text, str):
+                    generated_text = str(generated_text)
+                duration = time.time() - total_start_time
+                parsed = self._parse_json_safely(generated_text)
+                return {
+                    'success': True,
+                    'duration': duration,
+                    'prompt_size': original_prompt_size,
+                    'vacancy_size': vacancy_size,
+                    'generated_text': generated_text,
+                    'parsed_json': parsed,
+                    'error': None
+                }
+            except Exception as e:
+                error_str = str(e)
+                last_error = error_str
+                if "exceed context window" in error_str or "Requested tokens" in error_str:
+                    if attempt == 0:
+                        new_size = 64000
+                    else:
+                        new_size = int(len(current_prompt) * 0.95)
+                    if new_size < 1000:
+                        break
+                    current_prompt = current_prompt[:new_size]
+                    print(
+                        f"  ⚠️ Context window exceeded. Reducing prompt to {len(current_prompt)} chars and retrying (Attempt {attempt + 1}/{max_retries})...")
+                    continue
+                else:
+                    break
+
+        duration = time.time() - total_start_time
+        return {
+            'success': False,
+            'duration': duration,
+            'prompt_size': original_prompt_size,
+            'vacancy_size': vacancy_size,
+            'generated_text': '',
+            'parsed_json': None,
+            'error': last_error
+        }
+
+    def _apply_model_to_vacancies(self, model_id, vacancies, prompt_text):
+        results = []
+        for v in vacancies:
+            vid = v['vacancy_id']
+            print(f"  📄 Vacancy {vid} -> {model_id}")
+            try:
+                vacancy_text = self._read_vacancy_text(v['txt_path'])
+                if not vacancy_text:
+                    results.append({
+                        'vacancy_id': vid,
+                        'txt_name': v['txt_name'],
+                        'model_id': model_id,
+                        'success': False,
+                        'duration': 0.0,
+                        'prompt_size': 0,
+                        'vacancy_size': 0,
+                        'error': 'empty_text'
+                    })
+                    print(f"    ❌ Time: 0.00s | Error: empty_text")
+                    continue
+
+                result = self._apply_prompt_to_vacancy(model_id, prompt_text, vacancy_text)
+                result['vacancy_id'] = vid
+                result['txt_name'] = v['txt_name']
+                result['model_id'] = model_id
+                results.append(result)
+
+                status = "✅" if result['success'] else "❌"
+                err = f" | Error: {result['error']}" if result['error'] else ""
+                print(
+                    f"    {status} Time: {result['duration']:.2f}s | Prompt: {result['prompt_size']} chars | Vacancy: {result['vacancy_size']} chars{err}")
+            except Exception as e:
+                print(f"    ❌ Error processing vacancy {vid}: {e}")
+                results.append({
+                    'vacancy_id': vid,
+                    'txt_name': v.get('txt_name', ''),
+                    'model_id': model_id,
+                    'success': False,
+                    'duration': 0.0,
+                    'prompt_size': 0,
+                    'vacancy_size': 0,
+                    'error': str(e)
+                })
+        return results
+
+    def _apply_level_models_to_vacancies(self, vacancies, models, prompt_text, level_name):
+        print(f"\n{'=' * 70}")
+        print(f"🎯 {level_name} - {len(vacancies)} vacancies, {len(models)} model(s)")
+        print(f"{'=' * 70}")
+
+        all_results = []
+        model_times = {}
+        remaining = list(vacancies)
+        successful = []
+        level_start = time.time()
+
+        for model_id in models:
+            if not remaining:
+                break
+            print(f"\n🔄 Model: {model_id}")
+            print(f"   Vacancies to process: {len(remaining)}")
+            self._warmup_model(model_id)
+
+            model_start = time.time()
+            results = self._apply_model_to_vacancies(model_id, remaining, prompt_text)
+            model_duration = time.time() - model_start
+            model_times[model_id] = model_duration
+            all_results.extend(results)
+
+            new_remaining = []
+            for r, v in zip(results, remaining):
+                if r['success']:
+                    successful.append(v)
+                else:
+                    new_remaining.append(v)
+
+            succeeded_this_round = len(remaining) - len(new_remaining)
+            print(f"\n--- {level_name} Model Summary: {model_id} ---")
+            print(f"  Succeeded: {succeeded_this_round}/{len(remaining)} | Model Time: {model_duration:.2f}s")
+
+            remaining = new_remaining
+
+            if not remaining:
+                print(f"\n✅ All vacancies succeeded with {model_id}. Stopping {level_name}.")
+                break
+
+        level_time = time.time() - level_start
+
+        if remaining:
+            print(f"\n⚠️ {len(remaining)} vacancy(ies) still failed after all {level_name} models.")
+
+        return all_results, successful, remaining, level_time, model_times
+
+    @staticmethod
+    def _print_level_summary(level_name, all_results, successful, failed, level_time):
+        print(f"\n{'=' * 70}")
+        print(f"📊 {level_name} SUMMARY")
+        print(f"{'=' * 70}")
+        header = f"{'Vacancy':<15} | {'Model':<45} | {'Score':>6} | {'Pct':>5} | {'Time':>8} | Status"
+        print(header)
+        print("-" * 70)
+
+        by_vacancy = {}
+        for r in all_results:
+            vid = r['vacancy_id']
+            by_vacancy.setdefault(vid, []).append(r)
+
+        for vid, results in by_vacancy.items():
+            successful_r = next((r for r in results if r['success']), None)
+            display_r = successful_r if successful_r else results[-1]
+            model_short = display_r['model_id']
+            if len(model_short) > 45:
+                model_short = "..." + model_short[-42:]
+            status = "✅" if display_r['success'] else "❌"
+            score_str = f"{display_r.get('score', 0):>6}"
+            pct_str = f"{display_r.get('score_percentile', 0.0):>5.2f}"
+            print(
+                f"{vid:<15} | {model_short:<45} | {score_str} | {pct_str} | {display_r['duration']:>7.2f}s | {status}")
+
+        print("-" * 70)
+        print(f"Total {level_name}: {len(successful)} succeeded, {len(failed)} failed | Time: {level_time:.2f}s")
+
+    @staticmethod
+    def _print_model_usage_table(level_name, all_results, model_times):
+        print(f"\n📈 {level_name} - Model Usage")
+        print("-" * 70)
+        print(f"{'Model':<55} | {'Time':>8} | Calls")
+        print("-" * 70)
+
+        by_model = {}
+        for r in all_results:
+            mid = r['model_id']
+            if mid not in by_model:
+                by_model[mid] = {'count': 0, 'success': 0, 'time': 0.0}
+            by_model[mid]['count'] += 1
+            by_model[mid]['time'] += r['duration']
+            if r['success']:
+                by_model[mid]['success'] += 1
+
+        for mid, stats in by_model.items():
+            total_time = model_times.get(mid, stats['time'])
+            model_short = mid if len(mid) <= 55 else "..." + mid[-52:]
+            print(f"{model_short:<55} | {total_time:>7.2f}s | {stats['success']}/{stats['count']}")
+        print("-" * 70)
+
+    @staticmethod
+    def _print_unknown_skills_summary(level_name, all_results):
+        print(f"\n{'=' * 70}")
+        print(f"🔍 {level_name} - UNKNOWN SKILLS (grouped by skill)")
+        print(f"{'=' * 70}")
+        skill_counts = {}
+        for r in all_results:
+            if r.get('unknown_skills'):
+                for skill, level in r['unknown_skills']:
+                    key = f"{skill} ({level})"
+                    skill_counts[key] = skill_counts.get(key, 0) + 1
+
+        if skill_counts:
+            sorted_skills = sorted(skill_counts.items(), key=lambda x: (-x[1], x[0]))
+            for skill_key, count in sorted_skills:
+                print(f"  {skill_key}: {count} vacancy(ies)")
+            print(f"\nTotal unique unknown skills: {len(skill_counts)}")
+        else:
+            print("  No unknown skills found.")
+        print("-" * 70)
