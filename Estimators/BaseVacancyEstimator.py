@@ -4,6 +4,7 @@ import json
 import glob
 import time
 import email
+import sys
 from datetime import datetime
 from bs4 import BeautifulSoup
 from ai_clients.start_server import start_wsl_server, stop_wsl_server
@@ -243,6 +244,7 @@ class BaseVacancyEstimator:
                     for syn in group:
                         if isinstance(syn, str):
                             known_skills.add(syn.lower())
+
         return known_skills
 
     def _extract_keywords_from_config(self, config_data):
@@ -387,11 +389,13 @@ class BaseVacancyEstimator:
         if not text or not isinstance(text, str):
             return None
         text = text.strip()
+
         # 1. Direct parse
         try:
             return json.loads(text)
         except (json.JSONDecodeError, ValueError):
             pass
+
         # 2. Extract from ```json ... ``` or ``` ... ``` block
         match = re.search(
             r'```(?:json)?\s*(\{.*?\})\s*```',
@@ -402,6 +406,7 @@ class BaseVacancyEstimator:
                 return json.loads(match.group(1))
             except (json.JSONDecodeError, ValueError):
                 pass
+
         # 3. Find first balanced { ... } block
         start = text.find('{')
         if start != -1:
@@ -457,20 +462,39 @@ class BaseVacancyEstimator:
             return None
 
     def _warmup_model(self, client, model_id):
-        """Send a simple ping to warm up the model."""
+        """Send a simple ping to warm up the model with up to 5 retries."""
         start_time = time.time()
-        ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        print(f"  🔥 [{ts}] Warming up {model_id}")
-        try:
-            client.generate(
-                model_id, "2+2",
-                model_limit_seconds=self.WARMUP_TIMEOUT
-            )
-        except Exception as e:
-            print(f"  ⚠️ Warmup failed: {e}")
-        duration = time.time() - start_time
-        ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        print(f"  ✅ [{ts}] Warmup done in {duration:.2f}s")
+        max_retries = 5
+
+        for attempt in range(1, max_retries + 1):
+            ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            print(f"  🔥 [{ts}] Warming up {model_id} (Attempt {attempt}/{max_retries})")
+            try:
+                client.generate(
+                    model_id, "2+2",
+                    model_limit_seconds=self.WARMUP_TIMEOUT
+                )
+                duration = time.time() - start_time
+                ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                print(f"  ✅ [{ts}] Warmup done in {duration:.2f}s")
+                return
+            except Exception as e:
+                print(f"  ⚠️ Warmup failed on attempt {attempt}: {e}")
+                if attempt < max_retries:
+                    print("  🔄 Restarting server and waiting 30 seconds before retrying...")
+                    try:
+                        stop_wsl_server()
+                    except Exception as stop_e:
+                        print(f"  ⚠️ Error stopping server: {stop_e}")
+                    time.sleep(30)
+                    try:
+                        start_wsl_server()
+                    except Exception as start_e:
+                        print(f"  ⚠️ Error starting server: {start_e}")
+                    time.sleep(30)
+                else:
+                    print(f"  ❌ Warmup failed after {max_retries} attempts. Exiting.")
+                    sys.exit(1)
 
     def _apply_prompt_to_vacancy(
             self, client, model_id, prompt_text, vacancy_text
