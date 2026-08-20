@@ -146,7 +146,8 @@
       "Data Mesh": 1,
       "Data Mart": 1,
       "Sharding": 1,
-      "Data engineering": 1
+      "Data engineering": 1,
+      "data warehousing": 1
     },
     "AI/ML/Data Science Concepts": {
       "Machine Learning": 73,
@@ -208,7 +209,12 @@
       "spaCy": 1,
       "Transfer Learning": 1,
       "CNN": 1,
-      "Attention Mechanism": 1
+      "Attention Mechanism": 1,
+      "ai": 1,
+      "ai/ml": 1,
+      "agentic ai": 1,
+      "scikit-learn": 1,
+      "lstm": 1
     },
     "Cloud Platforms": {
       "AWS": 105,
@@ -726,7 +732,10 @@
       "GTmetrix": 1,
       "Chrome DevTools": 1,
       "k6": 1,
-      "Django ORM": 1
+      "Django ORM": 1,
+      "performance optimization": 1,
+      "devops": 1,
+      "elastic-search": 1
     }
   },
   "synonymns": [
@@ -1020,7 +1029,16 @@
     ["Cloud computing", "Cloud Computing"],
     ["Data engineering", "Data Engineering"],
     ["MicroStrategy", "Microstrategy"],
-    ["Query optimization", "Query Optimization"]
+    ["Query optimization", "Query Optimization"],
+    ["performance optimization", "Performance Optimization"],
+    ["data warehousing", "Data Warehousing"],
+    ["ai", "Artificial Intelligence"],
+    ["ai/ml", "AI/ML", "Artificial Intelligence/Machine Learning"],
+    ["agentic ai", "Agentic AI"],
+    ["devops", "DevOps", "Development Operations"],
+    ["scikit-learn", "sklearn"],
+    ["lstm", "Long Short-Term Memory"],
+    ["elastic-search", "Elasticsearch", "Elastic Search"]
   ],
   "industries": [
     ["FinTech", "Financial Technology", "Finance", "Banking", "Digital Banking", "Payments", "Open Banking", "BNPL", "P2P Payments", "Credit Cards"],

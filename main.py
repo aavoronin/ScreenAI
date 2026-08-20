@@ -39,10 +39,9 @@ if __name__ == "__main__":
     start_wsl_server()
     for nv in [nv1, nv2]:
         nv.analyze_collected()
-        nv.AI_estimate_collected()
-        nv.AI_estimate_collected()
-        break
-        continue
+    for nv in [nv1, nv2]:
+        for _ in range(8):
+            nv.AI_estimate_collected()
     stop_wsl_server()
 
     for nv in [

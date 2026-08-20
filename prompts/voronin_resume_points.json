@@ -152,7 +152,9 @@
     "Data flow",
     "Control flow",
     "Data engineering",
-    "Query optimization"
+    "Query optimization",
+    "performance optimization",
+    "data warehousing"
   ],
   "required": [
     "MySQL",
@@ -216,6 +218,9 @@
     "pytorch",
     "tensorflow",
     "NoSQL",
-    "Cloud computing"
+    "Cloud computing",
+    "ai",
+    "ai/ml",
+    "agentic ai"
   ]
 }

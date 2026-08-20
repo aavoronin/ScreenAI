@@ -18,8 +18,8 @@ class BaseVacancyEstimator:
     """
 
     PARSING_VERSION = 4
-    ESTIMATION_VERSION = 3
-    PARSING_PORTION = 100
+    ESTIMATION_VERSION = 4
+    PARSING_PORTION = 50
     PROMPT_FILE = "prompts/PROMPT_SIMPLE5.txt"
     RESUME_POINTS_FILE = "prompts/voronin_resume_points.json"
     VACANCY_TIMEOUT = 60 * 20
@@ -37,18 +37,19 @@ class BaseVacancyEstimator:
     ]
 
     # Scoring constants
-    SCORE_TITLE_EXACT = 20
-    SCORE_TITLE_80 = 16
-    SCORE_TITLE_60 = 12
+    TITLE_ADJUSTMENT = 0.6
+    SCORE_TITLE_EXACT = int(20 * TITLE_ADJUSTMENT)
+    SCORE_TITLE_80 = int(16 * TITLE_ADJUSTMENT)
+    SCORE_TITLE_60 = int(12 * TITLE_ADJUSTMENT)
     SCORE_INDUSTRY_PENALTY = -100
     PROFICIENCY_SCORE_MATRIX = {
-        "expert":       {"expert": 6, "required": 3, "nice-to-have": 1},
-        "required":     {"expert": 3, "required": 4, "nice-to-have": 1},
+        "expert":       {"expert": 6, "required": 4, "nice-to-have": 1},
+        "required":     {"expert": 4, "required": 5, "nice-to-have": 1},
         "nice-to-have": {"expert": 1, "required": 1, "nice-to-have": 2},
     }
     MISSING_PENALTY = {
-        "expert": -10,
-        "required": -8,
+        "expert": -6,
+        "required": -5,
         "nice-to-have": -1,
     }
     LEVEL_2_MIN_SCORE = 20
@@ -520,9 +521,9 @@ class BaseVacancyEstimator:
         Returns list of result dicts, one per vacancy.
         """
         results = []
-        for v in vacancies:
+        for vi, v in enumerate(vacancies):
             vid = v['vacancy_id']
-            print(f"  📄 Vacancy {vid} -> {model_id}")
+            print(f"{vi:<6} Vacancy {vid} -> {model_id}")
             vacancy_text = self._read_vacancy_text(v['txt_path'])
             if not vacancy_text:
                 results.append({
@@ -688,6 +689,32 @@ class BaseVacancyEstimator:
                 f"{model_short:<55} | {total_time:>7.2f}s | "
                 f"{stats['success']}/{stats['count']}"
             )
+        print("-" * 70)
+
+    def _print_unknown_skills_summary(self, level_name, all_results):
+        """
+        Print unknown skills summary grouped by skill, showing how many
+        vacancies were missing each skill.
+        """
+        print(f"\n{'=' * 70}")
+        print(f"🔍 {level_name} - UNKNOWN SKILLS (grouped by skill)")
+        print(f"{'=' * 70}")
+        skill_counts = {}
+        for r in all_results:
+            if r.get('unknown_skills'):
+                for skill, level in r['unknown_skills']:
+                    key = f"{skill} ({level})"
+                    skill_counts[key] = skill_counts.get(key, 0) + 1
+        if skill_counts:
+            # Sort by count descending, then alphabetically
+            sorted_skills = sorted(
+                skill_counts.items(), key=lambda x: (-x[1], x[0])
+            )
+            for skill_key, count in sorted_skills:
+                print(f"  {skill_key}: {count} vacancy(ies)")
+            print(f"\n  Total unique unknown skills: {len(skill_counts)}")
+        else:
+            print("  No unknown skills found.")
         print("-" * 70)
 
     # ------------------------------------------------------------------
@@ -1002,7 +1029,7 @@ class BaseVacancyEstimator:
 
         # 3. Start server
         print("\n🚀 Starting AI server...")
-        #start_wsl_server()
+        start_wsl_server()
         time.sleep(5)
         client = TextToTextClient()
 
@@ -1062,22 +1089,7 @@ class BaseVacancyEstimator:
             self._print_model_usage_table(
                 "LEVEL 1", l1_results, l1_model_times
             )
-
-            # Print Level 1 Unknown Skills Summary
-            print(f"\n{'=' * 70}")
-            print("🔍 LEVEL 1 - UNKNOWN SKILLS FOUND IN VACANCIES")
-            print(f"{'=' * 70}")
-            l1_unknown_skills = {}
-            for r in l1_results:
-                if r.get('unknown_skills'):
-                    l1_unknown_skills[r['vacancy_id']] = r['unknown_skills']
-            if l1_unknown_skills:
-                for vid, skills in l1_unknown_skills.items():
-                    skills_str = ", ".join([f"{s} ({l})" for s, l in skills])
-                    print(f"  Vacancy {vid}: {skills_str}")
-            else:
-                print("  No unknown skills found.")
-            print("-" * 70)
+            self._print_unknown_skills_summary("LEVEL 1", l1_results)
 
             result_data['level1'] = {
                 'results': l1_results,
@@ -1156,22 +1168,7 @@ class BaseVacancyEstimator:
                 self._print_model_usage_table(
                     "LEVEL 2", l2_results, l2_model_times
                 )
-
-                # Print Level 2 Unknown Skills Summary
-                print(f"\n{'=' * 70}")
-                print("🔍 LEVEL 2 - UNKNOWN SKILLS FOUND IN VACANCIES")
-                print(f"{'=' * 70}")
-                l2_unknown_skills = {}
-                for r in l2_results:
-                    if r.get('unknown_skills'):
-                        l2_unknown_skills[r['vacancy_id']] = r['unknown_skills']
-                if l2_unknown_skills:
-                    for vid, skills in l2_unknown_skills.items():
-                        skills_str = ", ".join([f"{s} ({l})" for s, l in skills])
-                        print(f"  Vacancy {vid}: {skills_str}")
-                else:
-                    print("  No unknown skills found.")
-                print("-" * 70)
+                self._print_unknown_skills_summary("LEVEL 2", l2_results)
 
                 result_data['level2'] = {
                     'results': l2_results,
@@ -1196,7 +1193,7 @@ class BaseVacancyEstimator:
         finally:
             # 6. Stop server
             print("\n🛑 Stopping AI server...")
-            #stop_wsl_server()
+            stop_wsl_server()
 
         # 7. Final summary
         overall_time = time.time() - overall_start
