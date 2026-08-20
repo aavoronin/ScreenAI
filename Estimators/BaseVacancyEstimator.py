@@ -18,7 +18,7 @@ class BaseVacancyEstimator:
     """
 
     PARSING_VERSION = 4
-    ESTIMATION_VERSION = 5
+    ESTIMATION_VERSION = 4
     PARSING_PORTION = 50
     PROMPT_FILE = "prompts/PROMPT_SIMPLE5.txt"
     RESUME_POINTS_FILE = "prompts/voronin_resume_points.json"
@@ -44,8 +44,8 @@ class BaseVacancyEstimator:
     SCORE_INDUSTRY_PENALTY = -100
 
     PROFICIENCY_SCORE_MATRIX = {
-        "expert":       {"expert": 6, "required": 4, "nice-to-have": 1},
-        "required":     {"expert": 4, "required": 5, "nice-to-have": 1},
+        "expert": {"expert": 6, "required": 4, "nice-to-have": 1},
+        "required": {"expert": 4, "required": 5, "nice-to-have": 1},
         "nice-to-have": {"expert": 1, "required": 1, "nice-to-have": 2},
     }
 
@@ -243,7 +243,6 @@ class BaseVacancyEstimator:
                     for syn in group:
                         if isinstance(syn, str):
                             known_skills.add(syn.lower())
-
         return known_skills
 
     def _extract_keywords_from_config(self, config_data):
@@ -264,7 +263,6 @@ class BaseVacancyEstimator:
                         keywords.add(keyword)
 
         # Extract synonyms (handles both list and dict formats)
-        # Note: the config file uses "synonymns" (typo in key), so we check both
         synonyms_section = config_data.get(
             'synonyms', config_data.get('synonymns', [])
         )
@@ -389,13 +387,11 @@ class BaseVacancyEstimator:
         if not text or not isinstance(text, str):
             return None
         text = text.strip()
-
         # 1. Direct parse
         try:
             return json.loads(text)
         except (json.JSONDecodeError, ValueError):
             pass
-
         # 2. Extract from ```json ... ``` or ``` ... ``` block
         match = re.search(
             r'```(?:json)?\s*(\{.*?\})\s*```',
@@ -406,7 +402,6 @@ class BaseVacancyEstimator:
                 return json.loads(match.group(1))
             except (json.JSONDecodeError, ValueError):
                 pass
-
         # 3. Find first balanced { ... } block
         start = text.find('{')
         if start != -1:
@@ -478,7 +473,7 @@ class BaseVacancyEstimator:
         print(f"  ✅ [{ts}] Warmup done in {duration:.2f}s")
 
     def _apply_prompt_to_vacancy(
-        self, client, model_id, prompt_text, vacancy_text
+            self, client, model_id, prompt_text, vacancy_text
     ):
         """
         Apply prompt to one vacancy with one model.
@@ -521,7 +516,7 @@ class BaseVacancyEstimator:
             }
 
     def _apply_model_to_vacancies(
-        self, client, model_id, vacancies, prompt_text
+            self, client, model_id, vacancies, prompt_text
     ):
         """
         Apply one model to a list of vacancies in sequence.
@@ -563,7 +558,7 @@ class BaseVacancyEstimator:
         return results
 
     def _apply_level_models_to_vacancies(
-        self, client, models, vacancies, prompt_text, level_name
+            self, client, models, vacancies, prompt_text, level_name
     ):
         """
         Apply a list of models (one level) to vacancies.
@@ -637,7 +632,7 @@ class BaseVacancyEstimator:
         return all_results, successful, remaining, level_time, model_times
 
     def _print_level_summary(
-        self, level_name, all_results, successful, failed, level_time
+            self, level_name, all_results, successful, failed, level_time
     ):
         """Print summary table for a level: each vacancy with its result."""
         print(f"\n{'=' * 70}")
@@ -645,7 +640,7 @@ class BaseVacancyEstimator:
         print(f"{'=' * 70}")
         header = (
             f"{'Vacancy':<15} | {'Model':<45} | "
-            f"{'Score':>6} | {'Time':>8} | Status"
+            f"{'Score':>6} | {'Pct':>5} | {'Time':>8} | Status"
         )
         print(header)
         print("-" * 70)
@@ -665,9 +660,10 @@ class BaseVacancyEstimator:
                 model_short = "..." + model_short[-42:]
             status = "✅" if display_r['success'] else "❌"
             score_str = f"{display_r.get('score', 0):>6}"
+            pct_str = f"{display_r.get('score_percentile', 0.0):>5.2f}"
             print(
                 f"{vid:<15} | {model_short:<45} | "
-                f"{score_str} | {display_r['duration']:>7.2f}s | {status}"
+                f"{score_str} | {pct_str} | {display_r['duration']:>7.2f}s | {status}"
             )
 
         print("-" * 70)
@@ -768,9 +764,9 @@ class BaseVacancyEstimator:
 
     def _build_synonym_map(self):
         """
-        Build a mapping synonym (lowercase) -> canonical (lowercase).
+        Build a mapping synonym (lowercase) -> canonical (first item in group).
         Used to normalize skill names so that e.g. 'Transact-SQL' and
-        'Transact SQL' both become 't-sql'.
+        'Transact SQL' both become 'T-SQL'.
         """
         estimator_config = self._load_estimator_config()
         synonyms_section = estimator_config.get(
@@ -780,16 +776,16 @@ class BaseVacancyEstimator:
         if isinstance(synonyms_section, list):
             for group in synonyms_section:
                 if isinstance(group, list) and len(group) > 0:
-                    canonical = group[0].strip().lower()
+                    canonical = group[0]
                     for syn in group:
                         if isinstance(syn, str):
-                            synonym_map[syn.strip().lower()] = canonical
+                            synonym_map[syn.lower()] = canonical
         return synonym_map
 
     def _normalize_by_synonyms(self, items, synonym_map):
         """
         Normalize a list of skill names using the synonym map.
-        Each item is replaced by the canonical (lowercase) synonym if found.
+        Each item is replaced by the canonical (first) synonym if found.
         Comparison is case-insensitive.
         """
         if not items:
@@ -802,20 +798,20 @@ class BaseVacancyEstimator:
             if item_lower in synonym_map:
                 normalized.append(synonym_map[item_lower])
             else:
-                normalized.append(item_lower)
+                normalized.append(item.strip())
         return normalized
 
     def _calculate_score(self, vacancy_json, resume_json, known_tech_skills):
         """
         Calculate score for a generated vacancy JSON against the resume
-        points JSON. Returns (score, protocol, unknown_skills) where
-        protocol is a list of strings explaining each point addition or
+        points JSON. Returns (score, protocol_entries, unknown_skills) where
+        protocol_entries is a list of dicts explaining each point addition or
         subtraction, and unknown_skills is a list of (skill, level) tuples
         for skills not found in resume or known tech skills.
         """
-        score = 0
-        protocol = []
+        protocol_entries = []
         unknown_skills = []
+        score = 0
         synonym_map = self._build_synonym_map()
 
         # --- Title matching ---
@@ -827,38 +823,62 @@ class BaseVacancyEstimator:
                 continue
             ratio = self._levenshtein_ratio(vacancy_title, rt)
             if ratio >= 1.0:
-                score += self.SCORE_TITLE_EXACT
-                protocol.append(
-                    f"+{self.SCORE_TITLE_EXACT} points vacancy title "
-                    f"exact match: '{vacancy_title}'"
-                )
+                points = self.SCORE_TITLE_EXACT
+                score += points
+                protocol_entries.append({
+                    "left": vacancy_title,
+                    "left_field": "Title",
+                    "score": points,
+                    "score_percentile": 0.0,
+                    "right": rt,
+                    "right_field": "Title",
+                    "msg": f"+{points} points vacancy title exact match: '{vacancy_title}' vs '{rt}'"
+                })
                 title_matched = True
                 break
             elif ratio >= 0.8:
-                score += self.SCORE_TITLE_80
-                protocol.append(
-                    f"+{self.SCORE_TITLE_80} points vacancy title "
-                    f"80% match ({ratio:.0%}): '{vacancy_title}' vs '{rt}'"
-                )
+                points = self.SCORE_TITLE_80
+                score += points
+                protocol_entries.append({
+                    "left": vacancy_title,
+                    "left_field": "Title",
+                    "score": points,
+                    "score_percentile": 0.0,
+                    "right": rt,
+                    "right_field": "Title",
+                    "msg": f"+{points} points vacancy title 80% match ({int(ratio * 100)}%): '{vacancy_title}' vs '{rt}'"
+                })
                 title_matched = True
                 break
             elif ratio >= 0.6:
-                score += self.SCORE_TITLE_60
-                protocol.append(
-                    f"+{self.SCORE_TITLE_60} points vacancy title "
-                    f"60% match ({ratio:.0%}): '{vacancy_title}' vs '{rt}'"
-                )
+                points = self.SCORE_TITLE_60
+                score += points
+                protocol_entries.append({
+                    "left": vacancy_title,
+                    "left_field": "Title",
+                    "score": points,
+                    "score_percentile": 0.0,
+                    "right": rt,
+                    "right_field": "Title",
+                    "msg": f"+{points} points vacancy title 60% match ({int(ratio * 100)}%): '{vacancy_title}' vs '{rt}'"
+                })
                 title_matched = True
                 break
 
         if not title_matched and vacancy_title:
-            protocol.append(
-                f"+0 points vacancy title no match: '{vacancy_title}'"
-            )
+            protocol_entries.append({
+                "left": vacancy_title,
+                "left_field": "Title",
+                "score": 0,
+                "score_percentile": 0.0,
+                "right": "",
+                "right_field": "Title",
+                "msg": f"+0 points vacancy title no match: '{vacancy_title}'"
+            })
 
         # --- CompanyNoIndustry penalty ---
         vacancy_industry = (
-            vacancy_json.get('CompanyIndustry') or ''
+                vacancy_json.get('CompanyIndustry') or ''
         ).strip()
         no_industries = resume_json.get('CompanyNoIndustry', []) or []
         for ni in no_industries:
@@ -866,27 +886,31 @@ class BaseVacancyEstimator:
                 continue
             ratio = self._levenshtein_ratio(vacancy_industry, ni)
             if ratio >= 0.9:
-                score += self.SCORE_INDUSTRY_PENALTY
-                protocol.append(
-                    f"{self.SCORE_INDUSTRY_PENALTY} points company "
-                    f"industry matches CompanyNoIndustry ({ratio:.0%}): "
-                    f"'{vacancy_industry}' vs '{ni}'"
-                )
+                points = self.SCORE_INDUSTRY_PENALTY
+                score += points
+                protocol_entries.append({
+                    "left": vacancy_industry,
+                    "left_field": "CompanyIndustry",
+                    "score": points,
+                    "score_percentile": 0.0,
+                    "right": ni,
+                    "right_field": "CompanyNoIndustry",
+                    "msg": f"{points} points company industry matches CompanyNoIndustry ({int(ratio * 100)}%): '{vacancy_industry}' vs '{ni}'"
+                })
                 break
 
         # --- Skills matching (expert / required / nice-to-have) ---
         levels = ["expert", "required", "nice-to-have"]
         vacancy_by_level = {}
         resume_by_level = {}
-
         for level in levels:
             vacancy_by_level[level] = set(
-                self._normalize_by_synonyms(
+                s.lower() for s in self._normalize_by_synonyms(
                     vacancy_json.get(level, []) or [], synonym_map
                 )
             )
             resume_by_level[level] = set(
-                self._normalize_by_synonyms(
+                s.lower() for s in self._normalize_by_synonyms(
                     resume_json.get(level, []) or [], synonym_map
                 )
             )
@@ -909,32 +933,55 @@ class BaseVacancyEstimator:
             if r_level is not None:
                 points = self.PROFICIENCY_SCORE_MATRIX[v_level][r_level]
                 score += points
-                protocol.append(
-                    f"+{points} points vacancy '{v_skill}' {v_level} "
-                    f"vs resume '{v_skill}' {r_level}"
-                )
+                protocol_entries.append({
+                    "left": v_skill,
+                    "left_field": v_level,
+                    "score": points,
+                    "score_percentile": 0.0,
+                    "right": v_skill,
+                    "right_field": r_level,
+                    "msg": f"+{points} points vacancy '{v_skill}' {v_level} vs resume '{v_skill}' {r_level}"
+                })
             else:
                 # Skill not in resume. Check if it's a known tech skill.
                 if v_skill in known_tech_skills:
                     points = self.MISSING_PENALTY[v_level]
                     score += points
-                    protocol.append(
-                        f"{points} points vacancy '{v_skill}' {v_level} "
-                        f"does not exist in resume json"
-                    )
+                    protocol_entries.append({
+                        "left": v_skill,
+                        "left_field": v_level,
+                        "score": points,
+                        "score_percentile": 0.0,
+                        "missing": v_skill,
+                        "right_field": "missing",
+                        "msg": f"{points} points vacancy '{v_skill}' {v_level} does not exist in resume json"
+                    })
                 else:
                     # Unknown skill: no penalty, just collect it
                     unknown_skills.append((v_skill, v_level))
-                    protocol.append(
-                        f"0 points vacancy '{v_skill}' {v_level} "
-                        f"is unknown (not in tech/synonyms), no penalty"
-                    )
+                    protocol_entries.append({
+                        "left": v_skill,
+                        "left_field": v_level,
+                        "score": 0,
+                        "score_percentile": 0.0,
+                        "missing": v_skill,
+                        "right_field": "unknown",
+                        "msg": f"0 points vacancy '{v_skill}' {v_level} is unknown (not in tech/synonyms), no penalty"
+                    })
 
-        return score, protocol, unknown_skills
+        # Calculate score_percentile for each entry
+        total_abs_score = sum(abs(e['score']) for e in protocol_entries)
+        for entry in protocol_entries:
+            if total_abs_score > 0:
+                entry['score_percentile'] = round(entry['score'] / total_abs_score, 2)
+            else:
+                entry['score_percentile'] = 0.0
+
+        return score, protocol_entries, unknown_skills
 
     def _save_estimation_result(
-        self, vacancy, estimation_tag, model_id, parsed_json,
-        score, protocol
+            self, vacancy, estimation_tag, model_id, parsed_json,
+            score, score_percentile, protocol
     ):
         """
         Save estimation result into the vacancy's JSON config file.
@@ -946,6 +993,7 @@ class BaseVacancyEstimator:
         config[estimation_tag] = {
             'model_id': model_id,
             'score': score,
+            'score_percentile': score_percentile,
             'json': parsed_json,
             'scoring_protocol': protocol,
         }
@@ -965,6 +1013,7 @@ class BaseVacancyEstimator:
         4. Apply level 2 models only on vacancies with score >= 20.
         5. Save estimation2 to json.
         6. Print summaries and statistics.
+        7. Save bulk JSON chunk.
         """
         print(f"\n{'#' * 70}")
         print(f"# Starting AI estimation for {folder}")
@@ -1073,20 +1122,22 @@ class BaseVacancyEstimator:
             )
 
             # Score each vacancy and save estimation1 to json
-            # Build a lookup: vacancy_id -> result (successful one)
             l1_by_vacancy = {}
-            for r in l1_results:
-                if r['success']:
-                    l1_by_vacancy[r['vacancy_id']] = r
-
-            # Attach score to each result for summary printing
             for r in l1_results:
                 if r['success']:
                     parsed = r.get('parsed_json') or {}
                     score, protocol, unknown = self._calculate_score(
                         parsed, resume_json, known_tech_skills
                     )
+
+                    total_abs = sum(abs(e['score']) for e in protocol)
+                    if total_abs > 0:
+                        vacancy_pct = round(score / total_abs, 2)
+                    else:
+                        vacancy_pct = 0.0
+
                     r['score'] = score
+                    r['score_percentile'] = vacancy_pct
                     r['protocol'] = protocol
                     r['unknown_skills'] = unknown
 
@@ -1099,11 +1150,13 @@ class BaseVacancyEstimator:
                     if v:
                         self._save_estimation_result(
                             v, 'estimation1', r['model_id'],
-                            parsed, score, protocol
+                            parsed, score, vacancy_pct, protocol
                         )
+                    l1_by_vacancy[r['vacancy_id']] = r
                 else:
                     r['score'] = 0
-                    r['protocol'] = [f"Generation failed: {r.get('error')}"]
+                    r['score_percentile'] = 0.0
+                    r['protocol'] = [{"msg": f"Generation failed: {r.get('error')}"}]
                     r['unknown_skills'] = []
 
             self._print_level_summary(
@@ -1126,23 +1179,27 @@ class BaseVacancyEstimator:
             l2_candidates = [
                 v for v in l1_success
                 if l1_by_vacancy.get(v['vacancy_id'], {}).get('score', 0)
-                >= self.LEVEL_2_MIN_SCORE
+                   >= self.LEVEL_2_MIN_SCORE
             ]
             l2_skipped = [
                 v for v in l1_success
                 if l1_by_vacancy.get(v['vacancy_id'], {}).get('score', 0)
-                < self.LEVEL_2_MIN_SCORE
+                   < self.LEVEL_2_MIN_SCORE
             ]
 
             # Save estimation2 for skipped vacancies (level1 too low)
             for v in l2_skipped:
                 l1_score = l1_by_vacancy[v['vacancy_id']]['score']
-                protocol = [
-                    f"Level 2 not started: level 1 score {l1_score} "
-                    f"is below minimum {self.LEVEL_2_MIN_SCORE}"
-                ]
+                protocol = [{
+                    "left": "N/A",
+                    "left_field": "N/A",
+                    "score": 0,
+                    "score_percentile": 0.0,
+                    "right_field": "missing",
+                    "msg": f"Level 2 not started: level 1 score {l1_score} is below minimum {self.LEVEL_2_MIN_SCORE}"
+                }]
                 self._save_estimation_result(
-                    v, 'estimation2', None, None, 0, protocol
+                    v, 'estimation2', None, None, 0, 0.0, protocol
                 )
 
             if l2_candidates:
@@ -1165,7 +1222,15 @@ class BaseVacancyEstimator:
                         score, protocol, unknown = self._calculate_score(
                             parsed, resume_json, known_tech_skills
                         )
+
+                        total_abs = sum(abs(e['score']) for e in protocol)
+                        if total_abs > 0:
+                            vacancy_pct = round(score / total_abs, 2)
+                        else:
+                            vacancy_pct = 0.0
+
                         r['score'] = score
+                        r['score_percentile'] = vacancy_pct
                         r['protocol'] = protocol
                         r['unknown_skills'] = unknown
 
@@ -1177,13 +1242,12 @@ class BaseVacancyEstimator:
                         if v:
                             self._save_estimation_result(
                                 v, 'estimation2', r['model_id'],
-                                parsed, score, protocol
+                                parsed, score, vacancy_pct, protocol
                             )
                     else:
                         r['score'] = 0
-                        r['protocol'] = [
-                            f"Generation failed: {r.get('error')}"
-                        ]
+                        r['score_percentile'] = 0.0
+                        r['protocol'] = [{"msg": f"Generation failed: {r.get('error')}"}]
                         r['unknown_skills'] = []
 
                 self._print_level_summary(
@@ -1239,5 +1303,31 @@ class BaseVacancyEstimator:
         print(f"  {'-' * 40}")
         print(f"  Total time:   {overall_time:>10.2f}s")
         print(f"{'#' * 70}")
+
+        # 8. Save bulk JSON chunk
+        chunks_dir = os.path.join(os.path.dirname(folder), 'Chunks')
+        os.makedirs(chunks_dir, exist_ok=True)
+
+        timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
+        chunk_filename = f"linkedin_bulk_jsons_{len(selected_files)}_{timestamp}.json"
+        chunk_filepath = os.path.join(chunks_dir, chunk_filename)
+
+        chunk_data = {}
+        for v in selected_files:
+            vid = v['vacancy_id']
+            json_path = v['json_path']
+            try:
+                with open(json_path, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+                chunk_data[vid] = data
+            except Exception as e:
+                chunk_data[vid] = {
+                    "error": f"json for vacancy {os.path.basename(json_path)} was faulty: {str(e)}"
+                }
+
+        with open(chunk_filepath, 'w', encoding='utf-8') as f:
+            json.dump(chunk_data, f, indent=2, ensure_ascii=False)
+
+        print(f"✅ Saved bulk JSON chunk to: {chunk_filepath}")
 
         return result_data
