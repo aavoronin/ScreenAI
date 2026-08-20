@@ -20,7 +20,7 @@ class BaseVacancyEstimator:
 
     PARSING_VERSION = 4
     ESTIMATION_VERSION = 5
-    PARSING_PORTION = 50
+    PARSING_PORTION = 5
 
     def __init__(self):
         pass
