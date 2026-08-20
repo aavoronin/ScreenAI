@@ -6,11 +6,8 @@ import time
 import email
 from datetime import datetime
 from bs4 import BeautifulSoup
-
 from Estimators.AI_Helper import AI_Helper
 from Estimators.VacancyScoring import VacancyScoring
-from ai_clients.start_server import start_wsl_server, stop_wsl_server
-from ai_clients.TextToTextClient import TextToTextClient
 
 
 class BaseVacancyEstimator:
@@ -23,21 +20,6 @@ class BaseVacancyEstimator:
     PARSING_VERSION = 4
     ESTIMATION_VERSION = 5
     PARSING_PORTION = 50
-    PROMPT_FILE = "prompts/PROMPT_SIMPLE5.txt"
-    RESUME_POINTS_FILE = "prompts/voronin_resume_points.json"
-    VACANCY_TIMEOUT = 60 * 20
-    WARMUP_TIMEOUT = 60 * 20
-
-    LEVEL_1_MODELS = [
-        "matrixportalx/Llama-3.3-8B-Instruct-128K-Q5_K_M-GGUF|GPU|32768",
-        "NikolayKozloff/gemma-3-4b-it-Q8_0-GGUF|GPU|32768",
-        "rktmeister/Meta-Llama-3.1-8B-Instruct-Q5_K_M-GGUF|GPU|32768",
-    ]
-
-    LEVEL_2_MODELS = [
-        "Brunobkr/OFFELLIA_Q6_K_gemma-4-26B-A4B-it-ultra-uncensored-heretic.gguf|CPU|32768",
-        "majentik/gemma-4-12B-it-RotorQuant-GGUF-Q5_K_M|CPU|32768",
-    ]
 
     def __init__(self):
         pass
@@ -154,7 +136,7 @@ class BaseVacancyEstimator:
     def _load_resume_points(self):
         estimators_dir = os.path.dirname(os.path.abspath(__file__))
         project_root = os.path.dirname(estimators_dir)
-        resume_path = os.path.join(project_root, self.RESUME_POINTS_FILE)
+        resume_path = os.path.join(project_root, "prompts/voronin_resume_points.json")
         if not os.path.exists(resume_path):
             print(f"⚠️ Resume points file not found: {resume_path}")
             return {}
@@ -299,20 +281,6 @@ class BaseVacancyEstimator:
     # ------------------------------------------------------------------
     # AI estimation main entry point
     # ------------------------------------------------------------------
-    def _load_prompt(self):
-        estimators_dir = os.path.dirname(os.path.abspath(__file__))
-        project_root = os.path.dirname(estimators_dir)
-        prompt_path = os.path.join(project_root, self.PROMPT_FILE)
-        if not os.path.exists(prompt_path):
-            print(f"⚠️ Prompt file not found: {prompt_path}")
-            return None
-        try:
-            with open(prompt_path, 'r', encoding='utf-8') as f:
-                return f.read()
-        except (IOError, OSError) as e:
-            print(f"⚠️ Could not read prompt file: {e}")
-            return None
-
     def AI_estimate_collected(self, folder):
         print(f"\n{'#' * 70}")
         print(f"# Starting AI estimation for {folder}")
@@ -379,26 +347,7 @@ class BaseVacancyEstimator:
             print("⚠️ No valid vacancies selected. Aborting.")
             return None
 
-        prompt_text = self._load_prompt()
-        if prompt_text is None:
-            print("⚠️ Could not load prompt. Aborting.")
-            return None
-        print(f"\n📝 Loaded prompt: {self.PROMPT_FILE} ({len(prompt_text)} chars)")
-
-        print("\n🚀 Starting AI server...")
-        start_wsl_server()
-        time.sleep(5)
-        client = TextToTextClient()
-
-        ai_helper = AI_Helper(
-            client=client,
-            prompt_text=prompt_text,
-            level_1_models=self.LEVEL_1_MODELS,
-            level_2_models=self.LEVEL_2_MODELS,
-            vacancy_timeout=self.VACANCY_TIMEOUT,
-            warmup_timeout=self.WARMUP_TIMEOUT
-        )
-
+        ai_helper = AI_Helper()
         vacancy_scoring = VacancyScoring(
             resume_json=resume_json,
             known_tech_skills=known_tech_skills,
@@ -419,7 +368,7 @@ class BaseVacancyEstimator:
         try:
             l1_results, l1_success, l1_failed, l1_time, l1_model_times = (
                 ai_helper._apply_level_models_to_vacancies(
-                    selected_files, self.LEVEL_1_MODELS, prompt_text, "LEVEL 1"
+                    selected_files, level_n=1, level_name="LEVEL 1"
                 )
             )
 
@@ -489,7 +438,7 @@ class BaseVacancyEstimator:
                     f"\n🎯 {len(l2_candidates)} vacancy(ies) qualify for LEVEL 2 (score >= {vacancy_scoring.LEVEL_2_MIN_SCORE} or pct >= 0.5). {len(l2_skipped)} skipped (level 1 too low).")
                 l2_results, l2_success, l2_failed, l2_time, l2_model_times = (
                     ai_helper._apply_level_models_to_vacancies(
-                        l2_candidates, self.LEVEL_2_MODELS, prompt_text, "LEVEL 2"
+                        l2_candidates, level_n=2, level_name="LEVEL 2"
                     )
                 )
 
@@ -539,8 +488,7 @@ class BaseVacancyEstimator:
                 }
 
         finally:
-            print("\n🛑 Stopping AI server...")
-            stop_wsl_server()
+            ai_helper.stop_server()
 
         overall_time = time.time() - overall_start
         result_data['total_time'] = overall_time

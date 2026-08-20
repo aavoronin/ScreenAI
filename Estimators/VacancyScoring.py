@@ -1,3 +1,8 @@
+import os
+import re
+import json
+
+
 class VacancyScoring:
     def __init__(self, resume_json, known_tech_skills, estimator_config, estimation_version, load_config_func,
                  save_config_func):

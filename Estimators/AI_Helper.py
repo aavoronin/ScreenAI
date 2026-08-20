@@ -1,23 +1,65 @@
-import json
+import os
 import re
-import sys
+import json
 import time
+import sys
 from datetime import datetime
-
-from ai_clients.start_server import stop_wsl_server, start_wsl_server
+from ai_clients.start_server import start_wsl_server, stop_wsl_server
+from ai_clients.TextToTextClient import TextToTextClient
 
 
 class AI_Helper:
+    LEVEL_1_MODELS = [
+        "matrixportalx/Llama-3.3-8B-Instruct-128K-Q5_K_M-GGUF|GPU|32768",
+        "NikolayKozloff/gemma-3-4b-it-Q8_0-GGUF|GPU|32768",
+        "rktmeister/Meta-Llama-3.1-8B-Instruct-Q5_K_M-GGUF|GPU|32768",
+    ]
 
+    LEVEL_2_MODELS = [
+        "Brunobkr/OFFELLIA_Q6_K_gemma-4-26B-A4B-it-ultra-uncensored-heretic.gguf|CPU|32768",
+        "majentik/gemma-4-12B-it-RotorQuant-GGUF-Q5_K_M|CPU|32768",
+    ]
 
+    PROMPT_FILE = "prompts/PROMPT_SIMPLE5.txt"
+    VACANCY_TIMEOUT = 60 * 20
+    WARMUP_TIMEOUT = 60 * 20
 
-    def __init__(self, client, prompt_text, level_1_models, level_2_models, vacancy_timeout, warmup_timeout):
-        self.client = client
-        self.prompt_text = prompt_text
-        self.level_1_models = level_1_models
-        self.level_2_models = level_2_models
-        self.vacancy_timeout = vacancy_timeout
-        self.warmup_timeout = warmup_timeout
+    def __init__(self):
+        self.client = None
+        self.prompt_text = None
+        self._server_started = False
+
+    def _ensure_server_and_client(self):
+        if not self._server_started:
+            print("\n🚀 Starting AI server...")
+            start_wsl_server()
+            time.sleep(5)
+            self.client = TextToTextClient()
+            self._server_started = True
+            self._load_prompt()
+
+    def _load_prompt(self):
+        estimators_dir = os.path.dirname(os.path.abspath(__file__))
+        project_root = os.path.dirname(estimators_dir)
+        prompt_path = os.path.join(project_root, self.PROMPT_FILE)
+        if not os.path.exists(prompt_path):
+            print(f"⚠️ Prompt file not found: {prompt_path}")
+            self.prompt_text = None
+            return
+        try:
+            with open(prompt_path, 'r', encoding='utf-8') as f:
+                self.prompt_text = f.read()
+            print(f"📝 Loaded prompt: {self.PROMPT_FILE} ({len(self.prompt_text)} chars)")
+        except (IOError, OSError) as e:
+            print(f"⚠️ Could not read prompt file: {e}")
+            self.prompt_text = None
+
+    def stop_server(self):
+        if self._server_started:
+            print("\n🛑 Stopping AI server...")
+            stop_wsl_server()
+            self._server_started = False
+            self.client = None
 
     @staticmethod
     def _parse_json_safely(text):
@@ -79,7 +121,7 @@ class AI_Helper:
             ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             print(f"  🔥 [{ts}] Warming up {model_id} (Attempt {attempt}/{max_retries})")
             try:
-                self.client.generate(model_id, "2+2", model_limit_seconds=self.warmup_timeout)
+                self.client.generate(model_id, "2+2", model_limit_seconds=self.WARMUP_TIMEOUT)
                 duration = time.time() - start_time
                 ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                 print(f"  ✅ [{ts}] Warmup done in {duration:.2f}s")
@@ -113,7 +155,7 @@ class AI_Helper:
 
         for attempt in range(max_retries + 1):
             try:
-                response = self.client.generate(model_id, current_prompt, model_limit_seconds=self.vacancy_timeout)
+                response = self.client.generate(model_id, current_prompt, model_limit_seconds=self.VACANCY_TIMEOUT)
                 generated_text = response.get("generated_text", "")
                 if not isinstance(generated_text, str):
                     generated_text = str(generated_text)
@@ -201,7 +243,14 @@ class AI_Helper:
                 })
         return results
 
-    def _apply_level_models_to_vacancies(self, vacancies, models, prompt_text, level_name):
+    def _apply_level_models_to_vacancies(self, vacancies, level_n, level_name):
+        self._ensure_server_and_client()
+        if self.prompt_text is None:
+            print("⚠️ Could not load prompt. Aborting level estimation.")
+            return [], [], vacancies, 0.0, {}
+
+        models = self.LEVEL_1_MODELS if level_n == 1 else self.LEVEL_2_MODELS
+
         print(f"\n{'=' * 70}")
         print(f"🎯 {level_name} - {len(vacancies)} vacancies, {len(models)} model(s)")
         print(f"{'=' * 70}")
@@ -220,7 +269,7 @@ class AI_Helper:
             self._warmup_model(model_id)
 
             model_start = time.time()
-            results = self._apply_model_to_vacancies(model_id, remaining, prompt_text)
+            results = self._apply_model_to_vacancies(model_id, remaining, self.prompt_text)
             model_duration = time.time() - model_start
             model_times[model_id] = model_duration
             all_results.extend(results)
