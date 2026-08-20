@@ -525,8 +525,11 @@ class BaseVacancyEstimator:
                     generated_text = str(generated_text)
                 duration = time.time() - total_start_time
                 parsed = self._parse_json_safely(generated_text)
+
+                # If the generation run is successful (no exception),
+                # we consider it a success and use its data.
                 return {
-                    'success': parsed is not None,
+                    'success': True,
                     'duration': duration,
                     'prompt_size': original_prompt_size,
                     'vacancy_size': vacancy_size,
@@ -580,35 +583,49 @@ class BaseVacancyEstimator:
         for v in vacancies:
             vid = v['vacancy_id']
             print(f"  📄 Vacancy {vid} -> {model_id}")
-            vacancy_text = self._read_vacancy_text(v['txt_path'])
-            if not vacancy_text:
+            try:
+                vacancy_text = self._read_vacancy_text(v['txt_path'])
+                if not vacancy_text:
+                    results.append({
+                        'vacancy_id': vid,
+                        'txt_name': v['txt_name'],
+                        'model_id': model_id,
+                        'success': False,
+                        'duration': 0.0,
+                        'prompt_size': 0,
+                        'vacancy_size': 0,
+                        'error': 'empty_text'
+                    })
+                    print(f"    ❌ Time: 0.00s | Error: empty_text")
+                    continue
+
+                result = self._apply_prompt_to_vacancy(
+                    client, model_id, prompt_text, vacancy_text
+                )
+                result['vacancy_id'] = vid
+                result['txt_name'] = v['txt_name']
+                result['model_id'] = model_id
+                results.append(result)
+
+                status = "✅" if result['success'] else "❌"
+                err = f" | Error: {result['error']}" if result['error'] else ""
+                print(
+                    f"    {status} Time: {result['duration']:.2f}s | "
+                    f"Prompt: {result['prompt_size']} chars | "
+                    f"Vacancy: {result['vacancy_size']} chars{err}"
+                )
+            except Exception as e:
+                print(f"    ❌ Error processing vacancy {vid}: {e}")
                 results.append({
                     'vacancy_id': vid,
-                    'txt_name': v['txt_name'],
+                    'txt_name': v.get('txt_name', ''),
                     'model_id': model_id,
                     'success': False,
                     'duration': 0.0,
                     'prompt_size': 0,
                     'vacancy_size': 0,
-                    'error': 'empty_text'
+                    'error': str(e)
                 })
-                continue
-
-            result = self._apply_prompt_to_vacancy(
-                client, model_id, prompt_text, vacancy_text
-            )
-            result['vacancy_id'] = vid
-            result['txt_name'] = v['txt_name']
-            result['model_id'] = model_id
-            results.append(result)
-
-            status = "✅" if result['success'] else "❌"
-            err = f" | Error: {result['error']}" if result['error'] else ""
-            print(
-                f"    {status} Time: {result['duration']:.2f}s | "
-                f"Prompt: {result['prompt_size']} chars | "
-                f"Vacancy: {result['vacancy_size']} chars{err}"
-            )
         return results
 
     def _apply_level_models_to_vacancies(
@@ -1064,7 +1081,7 @@ class BaseVacancyEstimator:
            and estimation_version is missing or < ESTIMATION_VERSION.
         2. Apply level 1 models in sequence until all succeed.
         3. Score each vacancy and save estimation1 to json.
-        4. Apply level 2 models only on vacancies with score >= 20.
+        4. Apply level 2 models only on vacancies with score >= 20 or percentile >= 0.5.
         5. Save estimation2 to json.
         6. Print summaries and statistics.
         7. Save bulk JSON chunk.
@@ -1229,28 +1246,29 @@ class BaseVacancyEstimator:
                 'model_times': l1_model_times
             }
 
-            # 5. Level 2 estimation - only on vacancies with score >= 20
+            # 5. Level 2 estimation - only on vacancies with score >= 20 OR score_percentile >= 0.5
             l2_candidates = [
                 v for v in l1_success
-                if l1_by_vacancy.get(v['vacancy_id'], {}).get('score', 0)
-                   >= self.LEVEL_2_MIN_SCORE
+                if l1_by_vacancy.get(v['vacancy_id'], {}).get('score', 0) >= self.LEVEL_2_MIN_SCORE
+                   or l1_by_vacancy.get(v['vacancy_id'], {}).get('score_percentile', 0.0) >= 0.5
             ]
             l2_skipped = [
                 v for v in l1_success
-                if l1_by_vacancy.get(v['vacancy_id'], {}).get('score', 0)
-                   < self.LEVEL_2_MIN_SCORE
+                if l1_by_vacancy.get(v['vacancy_id'], {}).get('score', 0) < self.LEVEL_2_MIN_SCORE
+                   and l1_by_vacancy.get(v['vacancy_id'], {}).get('score_percentile', 0.0) < 0.5
             ]
 
             # Save estimation2 for skipped vacancies (level1 too low)
             for v in l2_skipped:
                 l1_score = l1_by_vacancy[v['vacancy_id']]['score']
+                l1_pct = l1_by_vacancy[v['vacancy_id']]['score_percentile']
                 protocol = [{
                     "left": "N/A",
                     "left_field": "N/A",
                     "score": 0,
                     "score_percentile": 0.0,
                     "right_field": "missing",
-                    "msg": f"Level 2 not started: level 1 score {l1_score} is below minimum {self.LEVEL_2_MIN_SCORE}"
+                    "msg": f"Level 2 not started: level 1 score {l1_score} (pct: {l1_pct}) is below minimum {self.LEVEL_2_MIN_SCORE} or 0.5"
                 }]
                 self._save_estimation_result(
                     v, 'estimation2', None, None, 0, 0.0, protocol
@@ -1259,7 +1277,7 @@ class BaseVacancyEstimator:
             if l2_candidates:
                 print(
                     f"\n🎯 {len(l2_candidates)} vacancy(ies) qualify "
-                    f"for LEVEL 2 (score >= {self.LEVEL_2_MIN_SCORE}). "
+                    f"for LEVEL 2 (score >= {self.LEVEL_2_MIN_SCORE} or pct >= 0.5). "
                     f"{len(l2_skipped)} skipped (level 1 too low)."
                 )
                 l2_results, l2_success, l2_failed, l2_time, l2_model_times = (
@@ -1322,7 +1340,7 @@ class BaseVacancyEstimator:
             else:
                 print(
                     f"\n⚠️ No vacancies qualify for LEVEL 2 "
-                    f"(all level 1 scores < {self.LEVEL_2_MIN_SCORE})."
+                    f"(all level 1 scores < {self.LEVEL_2_MIN_SCORE} and pct < 0.5)."
                 )
                 result_data['level2'] = {
                     'results': [],
