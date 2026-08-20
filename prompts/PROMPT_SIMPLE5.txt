@@ -65,7 +65,7 @@ Other questions:
 HealthInsurance: Health insurance offered? (Options: yes, no)
 Urgency: How fast they need to fill the role (Options: immediate, within-1-month, within-3-months, flexible)
 HiringManagerName: Name of the hiring manager (string)
-RequiredLanguages: Human languages required (MUST be an array of strings, e.g., ["English"], ["English", "German"])
+RequiredLanguages: Human languages required (MUST be an array of SINGLE WORD strings, e.g., ["English"], ["English", "German"]).
 Vacancy Metadata:
 JobId: The unique identifier for the job posting (e.g., "123456789").
 VacancySite: The platform or website where the job is posted (e.g., "LinkedIn", "Indeed", "HireHive").
@@ -100,7 +100,7 @@ PostgreSQL, MySQL, T-SQL, PL/SQL, Snowflake SQL, BigQuery SQL, PL/pgSQL, Redshif
 BI Platforms (15):
 Power BI, Tableau, Looker, Qlik, QuickSight, MicroStrategy, SAP Analytics Cloud, Cognos, TIBCO Spotfire, Domo, Sisense, ThoughtSpot, Oracle Analytics, Metabase, Superset.
 ETL Tools (20):
-Airflow, dbt, Informatica, Spark, Glue, Azure Data Factory, Talend, DataStage, SSIS, Fivetran, Matillion, Apache NiFi, Dagster, Airbyte, Alteryx, Apache Beam, Google Cloud Dataflow, Prefect, Pentaho, Flink.
+Airflow, dbt, Informatica, Spark, Glue, Azure Data Factory, Talend, DataStage, SSIS, Fivetran, Matillion, NiFi, Dagster, Airbyte, Alteryx, Apache Beam, Google Cloud Dataflow, Prefect, Pentaho, Flink.
 DWH Concepts (25):
 Star Schema, Snowflake Schema, 3NF, Data Vault, Columnstore, SCD, Fact Table, Dimension Table, Surrogate Key, Conformed Dimension, Data Mart, Data Lakehouse, OLAP, OLTP, ELT, ETL, CDC, Table Partitioning, Sharding, Materialized View, Data Lineage, Data Governance, Kimball Methodology, Data Mesh, Data Quality.
 AI/ML/Data Science Concepts (30):

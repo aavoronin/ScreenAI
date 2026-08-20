@@ -501,43 +501,73 @@ class BaseVacancyEstimator:
     ):
         """
         Apply prompt to one vacancy with one model.
+        Handles context window exceeded errors by reducing prompt size.
         Returns dict with success, duration, prompt_size, generated_text,
         parsed_json, and optional error.
         """
         full_prompt = prompt_text + "\n" + vacancy_text
-        prompt_size = len(full_prompt)
+        original_prompt_size = len(full_prompt)
         vacancy_size = len(vacancy_text)
-        start_time = time.time()
-        try:
-            response = client.generate(
-                model_id, full_prompt,
-                model_limit_seconds=self.VACANCY_TIMEOUT
-            )
-            generated_text = response.get("generated_text", "")
-            if not isinstance(generated_text, str):
-                generated_text = str(generated_text)
-            duration = time.time() - start_time
-            parsed = self._parse_json_safely(generated_text)
-            return {
-                'success': parsed is not None,
-                'duration': duration,
-                'prompt_size': prompt_size,
-                'vacancy_size': vacancy_size,
-                'generated_text': generated_text,
-                'parsed_json': parsed,
-                'error': None
-            }
-        except Exception as e:
-            duration = time.time() - start_time
-            return {
-                'success': False,
-                'duration': duration,
-                'prompt_size': prompt_size,
-                'vacancy_size': vacancy_size,
-                'generated_text': '',
-                'parsed_json': None,
-                'error': str(e)
-            }
+
+        max_retries = 10
+        current_prompt = full_prompt
+        total_start_time = time.time()
+        last_error = None
+
+        for attempt in range(max_retries + 1):
+            try:
+                response = client.generate(
+                    model_id, current_prompt,
+                    model_limit_seconds=self.VACANCY_TIMEOUT
+                )
+                generated_text = response.get("generated_text", "")
+                if not isinstance(generated_text, str):
+                    generated_text = str(generated_text)
+                duration = time.time() - total_start_time
+                parsed = self._parse_json_safely(generated_text)
+                return {
+                    'success': parsed is not None,
+                    'duration': duration,
+                    'prompt_size': original_prompt_size,
+                    'vacancy_size': vacancy_size,
+                    'generated_text': generated_text,
+                    'parsed_json': parsed,
+                    'error': None
+                }
+            except Exception as e:
+                error_str = str(e)
+                last_error = error_str
+
+                # Check if it's a context window exceeded error
+                if "exceed context window" in error_str or "Requested tokens" in error_str:
+                    if attempt == 0:
+                        # First retry: reduce to 64K
+                        new_size = 64000
+                    else:
+                        # Subsequent retries: reduce by 5%
+                        new_size = int(len(current_prompt) * 0.95)
+
+                    if new_size < 1000:
+                        break
+
+                    current_prompt = current_prompt[:new_size]
+                    print(
+                        f"  ⚠️ Context window exceeded. Reducing prompt to {len(current_prompt)} chars and retrying (Attempt {attempt + 1}/{max_retries})...")
+                    continue
+                else:
+                    # Not a context window error, fail immediately
+                    break
+
+        duration = time.time() - total_start_time
+        return {
+            'success': False,
+            'duration': duration,
+            'prompt_size': original_prompt_size,
+            'vacancy_size': vacancy_size,
+            'generated_text': '',
+            'parsed_json': None,
+            'error': last_error
+        }
 
     def _apply_model_to_vacancies(
             self, client, model_id, vacancies, prompt_text
