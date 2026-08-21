@@ -3,6 +3,8 @@ import re
 import json
 import time
 import sys
+import hashlib
+import zipfile
 from datetime import datetime
 from ai_clients.start_server import start_wsl_server, stop_wsl_server
 from ai_clients.TextToTextClient import TextToTextClient
@@ -20,13 +22,13 @@ class AI_Helper:
         "majentik/gemma-4-12B-it-RotorQuant-GGUF-Q5_K_M|CPU|32768",
     ]
 
-    PROMPT_FILE = "prompts/PROMPT_SIMPLE5.txt"
-    VACANCY_TIMEOUT = 60 * 20
-    WARMUP_TIMEOUT = 60 * 20
-
-    def __init__(self):
+    def __init__(self, cache_dir, prompt_text, vacancy_timeout, warmup_timeout):
+        self.cache_dir = cache_dir
+        os.makedirs(self.cache_dir, exist_ok=True)
+        self.prompt_text = prompt_text
+        self.vacancy_timeout = vacancy_timeout
+        self.warmup_timeout = warmup_timeout
         self.client = None
-        self.prompt_text = None
         self._server_started = False
 
     def _ensure_server_and_client(self):
@@ -36,23 +38,6 @@ class AI_Helper:
             time.sleep(5)
             self.client = TextToTextClient()
             self._server_started = True
-            self._load_prompt()
-
-    def _load_prompt(self):
-        estimators_dir = os.path.dirname(os.path.abspath(__file__))
-        project_root = os.path.dirname(estimators_dir)
-        prompt_path = os.path.join(project_root, self.PROMPT_FILE)
-        if not os.path.exists(prompt_path):
-            print(f"⚠️ Prompt file not found: {prompt_path}")
-            self.prompt_text = None
-            return
-        try:
-            with open(prompt_path, 'r', encoding='utf-8') as f:
-                self.prompt_text = f.read()
-            print(f"📝 Loaded prompt: {self.PROMPT_FILE} ({len(self.prompt_text)} chars)")
-        except (IOError, OSError) as e:
-            print(f"⚠️ Could not read prompt file: {e}")
-            self.prompt_text = None
 
     def stop_server(self):
         if self._server_started:
@@ -105,14 +90,19 @@ class AI_Helper:
                             break
         return None
 
-    @staticmethod
-    def _read_vacancy_text(txt_path):
-        try:
-            with open(txt_path, 'r', encoding='utf-8') as f:
-                return f.read()
-        except (IOError, OSError) as e:
-            print(f"⚠️ Could not read {txt_path}: {e}")
-            return ""
+    def _get_cache_file_path(self, model_id: str, prompt: str) -> str:
+        key = f"{model_id}|{prompt}"
+        md5_hash = hashlib.md5(key.encode('utf-8')).hexdigest()
+        return os.path.join(self.cache_dir, f"{md5_hash}.zip")
+
+    def _load_from_cache(self, cache_path: str) -> dict:
+        with zipfile.ZipFile(cache_path, 'r') as zf:
+            with zf.open('response.json') as f:
+                return json.load(f)
+
+    def _save_to_cache(self, cache_path: str, response: dict):
+        with zipfile.ZipFile(cache_path, 'w', zipfile.ZIP_DEFLATED) as zf:
+            zf.writestr('response.json', json.dumps(response))
 
     def _warmup_model(self, model_id):
         start_time = time.time()
@@ -121,7 +111,7 @@ class AI_Helper:
             ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             print(f"  🔥 [{ts}] Warming up {model_id} (Attempt {attempt}/{max_retries})")
             try:
-                self.client.generate(model_id, "2+2", model_limit_seconds=self.WARMUP_TIMEOUT)
+                self.client.generate(model_id, "2+2", model_limit_seconds=self.warmup_timeout)
                 duration = time.time() - start_time
                 ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                 print(f"  ✅ [{ts}] Warmup done in {duration:.2f}s")
@@ -144,93 +134,73 @@ class AI_Helper:
                     print(f"  ❌ Warmup failed after {max_retries} attempts. Exiting.")
                     sys.exit(1)
 
-    def _apply_prompt_to_vacancy(self, model_id, prompt_text, vacancy_text):
-        full_prompt = prompt_text + "\n" + vacancy_text
-        original_prompt_size = len(full_prompt)
-        vacancy_size = len(vacancy_text)
-        max_retries = 10
-        current_prompt = full_prompt
-        total_start_time = time.time()
-        last_error = None
+    def _apply_prompt_to_vacancy(self, model_id: str, prompt_text: str, cleaned_vacancy_text: str):
+        full_prompt = prompt_text + "\n" + cleaned_vacancy_text
+        cache_path = self._get_cache_file_path(model_id, full_prompt)
 
-        for attempt in range(max_retries + 1):
+        if os.path.exists(cache_path):
+            print(f"  💾 Loading from cache: {os.path.basename(cache_path)}")
             try:
-                response = self.client.generate(model_id, current_prompt, model_limit_seconds=self.VACANCY_TIMEOUT)
+                response = self._load_from_cache(cache_path)
                 generated_text = response.get("generated_text", "")
                 if not isinstance(generated_text, str):
                     generated_text = str(generated_text)
-                duration = time.time() - total_start_time
                 parsed = self._parse_json_safely(generated_text)
                 return {
                     'success': True,
-                    'duration': duration,
-                    'prompt_size': original_prompt_size,
-                    'vacancy_size': vacancy_size,
+                    'duration': 0.0,
+                    'prompt_size': len(full_prompt),
+                    'vacancy_size': len(cleaned_vacancy_text),
                     'generated_text': generated_text,
                     'parsed_json': parsed,
-                    'error': None
+                    'error': None,
+                    'from_cache': True
                 }
             except Exception as e:
-                error_str = str(e)
-                last_error = error_str
-                if "exceed context window" in error_str or "Requested tokens" in error_str:
-                    if attempt == 0:
-                        new_size = 64000
-                    else:
-                        new_size = int(len(current_prompt) * 0.95)
-                    if new_size < 1000:
-                        break
-                    current_prompt = current_prompt[:new_size]
-                    print(
-                        f"  ⚠️ Context window exceeded. Reducing prompt to {len(current_prompt)} chars and retrying (Attempt {attempt + 1}/{max_retries})...")
-                    continue
-                else:
-                    break
+                print(f"  ⚠️ Cache read error: {e}. Regenerating...")
 
-        duration = time.time() - total_start_time
-        return {
-            'success': False,
-            'duration': duration,
-            'prompt_size': original_prompt_size,
-            'vacancy_size': vacancy_size,
-            'generated_text': '',
-            'parsed_json': None,
-            'error': last_error
-        }
+        total_start_time = time.time()
+        try:
+            response = self.client.generate(model_id, full_prompt, model_limit_seconds=self.vacancy_timeout)
+            duration = time.time() - total_start_time
 
-    def _apply_model_to_vacancies(self, model_id, vacancies, prompt_text):
+            self._save_to_cache(cache_path, response)
+
+            generated_text = response.get("generated_text", "")
+            if not isinstance(generated_text, str):
+                generated_text = str(generated_text)
+            parsed = self._parse_json_safely(generated_text)
+            return {
+                'success': True,
+                'duration': duration,
+                'prompt_size': len(full_prompt),
+                'vacancy_size': len(cleaned_vacancy_text),
+                'generated_text': generated_text,
+                'parsed_json': parsed,
+                'error': None,
+                'from_cache': False
+            }
+        except Exception as e:
+            duration = time.time() - total_start_time
+            return {
+                'success': False,
+                'duration': duration,
+                'prompt_size': len(full_prompt),
+                'vacancy_size': len(cleaned_vacancy_text),
+                'generated_text': '',
+                'parsed_json': None,
+                'error': str(e),
+                'from_cache': False
+            }
+
+    def _apply_model_to_vacancies(self, model_id, prepared_vacancies, prompt_text):
         results = []
-        for v in vacancies:
+        for v in prepared_vacancies:
             vid = v['vacancy_id']
             print(f"  📄 Vacancy {vid} -> {model_id}")
-            try:
-                vacancy_text = self._read_vacancy_text(v['txt_path'])
-                if not vacancy_text:
-                    results.append({
-                        'vacancy_id': vid,
-                        'txt_name': v['txt_name'],
-                        'model_id': model_id,
-                        'success': False,
-                        'duration': 0.0,
-                        'prompt_size': 0,
-                        'vacancy_size': 0,
-                        'error': 'empty_text'
-                    })
-                    print(f"    ❌ Time: 0.00s | Error: empty_text")
-                    continue
 
-                result = self._apply_prompt_to_vacancy(model_id, prompt_text, vacancy_text)
-                result['vacancy_id'] = vid
-                result['txt_name'] = v['txt_name']
-                result['model_id'] = model_id
-                results.append(result)
-
-                status = "✅" if result['success'] else "❌"
-                err = f" | Error: {result['error']}" if result['error'] else ""
-                print(
-                    f"    {status} Time: {result['duration']:.2f}s | Prompt: {result['prompt_size']} chars | Vacancy: {result['vacancy_size']} chars{err}")
-            except Exception as e:
-                print(f"    ❌ Error processing vacancy {vid}: {e}")
+            cleaned_text = v.get('cleaned_text', '')
+            if not cleaned_text:
                 results.append({
                     'vacancy_id': vid,
                     'txt_name': v.get('txt_name', ''),
@@ -239,25 +209,43 @@ class AI_Helper:
                     'duration': 0.0,
                     'prompt_size': 0,
                     'vacancy_size': 0,
-                    'error': str(e)
+                    'error': 'empty_text',
+                    'from_cache': False
                 })
+                print(f"    ❌ Time: 0.00s | Error: empty_text")
+                continue
+
+            result = self._apply_prompt_to_vacancy(model_id, prompt_text, cleaned_text)
+            result['vacancy_id'] = vid
+            result['txt_name'] = v.get('txt_name', '')
+            result['model_id'] = model_id
+            results.append(result)
+
+            status = "✅" if result['success'] else "❌"
+            cache_info = " (Cache)" if result.get('from_cache') else ""
+            err = f" | Error: {result['error']}" if result['error'] else ""
+            print(
+                f"    {status}{cache_info} Time: {result['duration']:.2f}s | "
+                f"Prompt: {result['prompt_size']} chars | "
+                f"Vacancy: {result['vacancy_size']} chars{err}"
+            )
         return results
 
-    def _apply_level_models_to_vacancies(self, vacancies, level_n, level_name):
+    def _apply_level_models_to_vacancies(self, prepared_vacancies, level_n, level_name):
         self._ensure_server_and_client()
         if self.prompt_text is None:
             print("⚠️ Could not load prompt. Aborting level estimation.")
-            return [], [], vacancies, 0.0, {}
+            return [], [], prepared_vacancies, 0.0, {}
 
         models = self.LEVEL_1_MODELS if level_n == 1 else self.LEVEL_2_MODELS
 
         print(f"\n{'=' * 70}")
-        print(f"🎯 {level_name} - {len(vacancies)} vacancies, {len(models)} model(s)")
+        print(f"🎯 {level_name} - {len(prepared_vacancies)} vacancies, {len(models)} model(s)")
         print(f"{'=' * 70}")
 
         all_results = []
         model_times = {}
-        remaining = list(vacancies)
+        remaining = list(prepared_vacancies)
         successful = []
         level_start = time.time()
 

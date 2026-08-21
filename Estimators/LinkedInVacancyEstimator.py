@@ -148,3 +148,11 @@ class LinkedInVacancyEstimator(BaseVacancyEstimator):
                 print(f"{i:<6} files estimated")
             self.estimate(mhtml_path)
         print("✅ Finished estimating all vacancies.")
+
+    def vacancy_clean(self, text: str) -> str:
+        marker = "Unlock hiring insights"
+        idx = text.find(marker)
+        if idx != -1:
+            return text[:idx]
+        return text
+

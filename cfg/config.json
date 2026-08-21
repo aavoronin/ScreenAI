@@ -1,11 +1,12 @@
 {
   "paths": {
-    "project_path": "C:\\Py\\ScreenAI",
-    "omniparser_repo_path": "C:\\Py\\ScreenAI\\omniparser",
-    "input_dir": "C:\\Py\\ScreenAI\\input",
-    "output_dir": "C:\\Py\\ScreenAI\\output",
-    "vacancies_linkedin_output_path": "C:\\Py\\ScreenAI\\out\\LinkedIn\\Vacancies",
+    "cache": "C:\\Py\\ScreenAI\\out\\cache",
     "vacancies_hirify_output_path": "C:\\Py\\ScreenAI\\out\\Hirify\\Vacancies",
+    "vacancies_linkedin_output_path": "C:\\Py\\ScreenAI\\out\\LinkedIn\\Vacancies",
+    "omniparser_repo_path": "C:\\Py\\ScreenAI\\omniparser",
+    "output_dir": "C:\\Py\\ScreenAI\\out",
+    "project_path": "C:\\Py\\ScreenAI",
+    "input_dir": "C:\\Py\\ScreenAI\\input",
     "hirify_urls_file_path": "C:\\Py\\ScreenAI\\Navigators\\hirify_urls.csv"
   }
 }
