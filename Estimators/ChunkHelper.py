@@ -41,17 +41,17 @@ class ChunkHelper:
         print(f"✅ Saved bulk JSON chunk to: {chunk_filepath}")
 
         # Create MHTML summary file
-        ChunkHelper._create_mhtml_summary(chunk_filepath, chunk_data, selected_files, chunks_dir)
+        ChunkHelper._create_html_summary(chunk_filepath, chunk_data, selected_files, chunks_dir)
 
         return chunk_filepath
 
     @staticmethod
-    def _create_mhtml_summary(chunk_filepath, chunk_data, selected_files, chunks_dir):
+    def _create_html_summary(chunk_filepath, chunk_data, selected_files, chunks_dir):
         """
         Create an MHTML file with a summary table of vacancies.
         """
         # Create MHTML filename (same as chunk but with .mhtml extension)
-        mhtml_filepath = os.path.splitext(chunk_filepath)[0] + '.html'
+        html_filepath = os.path.splitext(chunk_filepath)[0] + '.html'
 
         # Prepare vacancy data with scores
         vacancy_rows = []
@@ -89,7 +89,7 @@ class ChunkHelper:
             # Get file paths
             base_path = os.path.splitext(v['json_path'])[0]
             txt_path = base_path + '.txt'
-            mhtml_path = base_path + '.mhtml'
+            mhtml_path = base_path + 'mhtml'
 
             # Get vacancy text
             vacancy_text = ""
@@ -119,10 +119,10 @@ class ChunkHelper:
         html_content = ChunkHelper._generate_html_table(vacancy_rows)
 
         # Save as MHTML
-        with open(mhtml_filepath, 'w', encoding='utf-8') as f:
+        with open(html_filepath, 'w', encoding='utf-8') as f:
             f.write(html_content)
 
-        print(f"✅ Created MHTML summary: {mhtml_filepath}")
+        print(f"✅ Created MHTML summary: {html_filepath}")
 
     @staticmethod
     def _generate_html_table(vacancy_rows):
@@ -248,10 +248,11 @@ function toggleSection(btn) {
 <table>
 <thead>
 <tr>
+<th>VacancyTitle</th>
 <th>Score</th>
 <th>Score Percentile</th>
 <th>VacancyId</th>
-<th>VacancyTitle</th>
+<th>Salary</th>
 <th></th>
 </tr>
 </thead>
@@ -259,19 +260,60 @@ function toggleSection(btn) {
 """
 
         for row in vacancy_rows:
+            # Format title with EmploymentType and Country
+            title = row.get('title', '')
+            json_data = row.get('estimation_data', {}).get('json', {})
+
+            emp_type = json_data.get('EmploymentType')
+            country = json_data.get('CandidateCountry') or json_data.get('EmployerCountry')
+
+            extras = []
+            if emp_type:
+                extras.append(str(emp_type).strip())
+
+            if country:
+                if isinstance(country, list):
+                    country_str = ", ".join(str(c).strip() for c in country if c)
+                else:
+                    country_str = str(country).strip()
+                if country_str:
+                    extras.append(country_str)
+
+            if extras:
+                display_title = f"{title} ({', '.join(extras)})"
+            else:
+                display_title = title
+
+            # Format salary
+            sal_min = json_data.get('SalaryMin', '')
+            sal_max = json_data.get('SalaryMax', '')
+            sal_curr = json_data.get('SalaryCurrency', '')
+            sal_period = json_data.get('SalaryPeriod', '')
+
+            salary_parts = []
+            if sal_min or sal_max:
+                salary_parts.append(f"{sal_min}-{sal_max}")
+            if sal_curr:
+                salary_parts.append(sal_curr)
+            if sal_period:
+                salary_parts.append(f"per {sal_period}")
+
+            salary_str = " ".join(salary_parts) if salary_parts else ""
+
             # Main row
             html += f"""            <tr>
+                <td>{display_title}</td>
                 <td>{row['score']}</td>
                 <td>{row['score_percentile']:.2f}</td>
                 <td>{row['vacancy_id']}</td>
-                <td>{row['title']}</td>
+                <td>{salary_str}</td>
                 <td><button class="collapse-btn" onclick="toggleSection(this)">[+]</button></td>
             </tr>
 """
 
             # Collapsible section
             html += """            <tr class="collapsible-section">
-                <td colspan="5">
+                <td colspan="6">
 """
 
             # Nested table with skills comparison
@@ -344,10 +386,10 @@ function toggleSection(btn) {
             # Vacancy text (strip URLs)
             clean_vacancy_text = re.sub(r'https?://\S+', '', row['vacancy_text'])
             html += f"""                    <h3>Vacancy Text</h3>
-        <div class="vacancy-text">{clean_vacancy_text}</div>
-        </td>
-        </tr>
-        """
+                    <div class="vacancy-text">{clean_vacancy_text}</div>
+                </td>
+            </tr>
+"""
 
         html += """        </tbody>
     </table>
