@@ -1,4 +1,5 @@
 import os
+import re
 import json
 from datetime import datetime
 
@@ -340,12 +341,13 @@ function toggleSection(btn) {
             html += """                    </div>
 """
 
-            # Vacancy text
+            # Vacancy text (strip URLs)
+            clean_vacancy_text = re.sub(r'https?://\S+', '', row['vacancy_text'])
             html += f"""                    <h3>Vacancy Text</h3>
-                    <div class="vacancy-text">{row['vacancy_text']}</div>
-                </td>
-            </tr>
-"""
+        <div class="vacancy-text">{clean_vacancy_text}</div>
+        </td>
+        </tr>
+        """
 
         html += """        </tbody>
     </table>

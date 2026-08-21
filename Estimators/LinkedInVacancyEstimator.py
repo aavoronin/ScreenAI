@@ -149,10 +149,19 @@ class LinkedInVacancyEstimator(BaseVacancyEstimator):
             self.estimate(mhtml_path)
         print("✅ Finished estimating all vacancies.")
 
+    import re
+
     def vacancy_clean(self, text: str) -> str:
         marker = "Unlock hiring insights"
         idx = text.find(marker)
         if idx != -1:
-            return text[:idx]
+            text = text[:idx]
+
+        for pattern in [
+            r'https://www\.linkedin\.com/jobs/search-results/[^\s]*\n?',
+            r"https://www\.linkedin\.com/preload/guideOverlay/[^\s]*\n?"
+        ]:
+            text = re.sub(pattern, '', text, flags=re.IGNORECASE)
+
         return text
 
