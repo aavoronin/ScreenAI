@@ -54,6 +54,14 @@ class VacancyScoring:
         max_len = max(len1, len2)
         return 1.0 - (distance / max_len) if max_len > 0 else 1.0
 
+    def _is_word_bound_substring(self, s1, s2):
+        """Check if s1 is a word-bound substring of s2, or vice versa."""
+        if re.search(r'\b' + re.escape(s1) + r'\b', s2):
+            return True
+        if re.search(r'\b' + re.escape(s2) + r'\b', s1):
+            return True
+        return False
+
     def _build_synonym_map(self):
         synonyms_section = self.estimator_config.get(
             'synonyms', self.estimator_config.get('synonymns', [])
@@ -256,30 +264,69 @@ class VacancyScoring:
                     "msg": f"+{points} points vacancy '{v_skill}' {v_level} vs resume '{v_skill}' {r_level}"
                 })
             else:
-                if v_skill in self.known_tech_skills:
-                    points = self.MISSING_PENALTY[v_level]
-                    score += points
+                # No exact match. Try to find known skills as a word-bound substring.
+                max_scores_by_canonical = {}
+                best_matches = {}
+
+                for r_level_check in levels:
+                    for r_skill in resume_by_level[r_level_check]:
+                        canonical = synonym_map.get(r_skill, r_skill)
+                        # Ensure the matching resume skill is a known tech skill
+                        if canonical in self.known_tech_skills or r_skill in self.known_tech_skills:
+                            if self._is_word_bound_substring(v_skill, r_skill):
+                                points = self.PROFICIENCY_SCORE_MATRIX[v_level][r_level_check]
+                                ratio = self._levenshtein_ratio(v_skill, r_skill)
+                                score_val = points * ratio
+
+                                if canonical not in max_scores_by_canonical or score_val > max_scores_by_canonical[
+                                    canonical]:
+                                    max_scores_by_canonical[canonical] = score_val
+                                    best_matches[canonical] = (r_skill, r_level_check, ratio)
+
+                if max_scores_by_canonical:
+                    total_sub_score = sum(max_scores_by_canonical.values())
+                    score += total_sub_score
+
+                    match_details = []
+                    for canonical, (r_skill, r_level_check, ratio) in best_matches.items():
+                        match_details.append(f"'{r_skill}' {r_level_check} (ratio: {ratio:.2f})")
+
                     protocol_entries.append({
                         "left": v_skill,
                         "left_field": v_level,
-                        "score": points,
+                        "score": round(total_sub_score, 2),
                         "score_percentile": 0.0,
-                        "missing": v_skill,
-                        "right_field": "missing",
-                        "msg": f"{points} points vacancy '{v_skill}' {v_level} does not exist in resume json"
+                        "right": ", ".join([m[0] for m in best_matches.values()]),
+                        "right_field": ", ".join([m[1] for m in best_matches.values()]),
+                        "msg": f"+{total_sub_score:.2f} points vacancy '{v_skill}' {v_level} partially matches resume {match_details}"
                     })
                 else:
-                    unknown_skills.append((v_skill, v_level))
-                    protocol_entries.append({
-                        "left": v_skill,
-                        "left_field": v_level,
-                        "score": 0,
-                        "score_percentile": 0.0,
-                        "missing": v_skill,
-                        "right_field": "unknown",
-                        "msg": f"0 points vacancy '{v_skill}' {v_level} is unknown (not in tech/synonyms), no penalty"
-                    })
+                    # No substring match found. Fall back to missing penalty or unknown.
+                    if v_skill in self.known_tech_skills:
+                        points = self.MISSING_PENALTY[v_level]
+                        score += points
+                        protocol_entries.append({
+                            "left": v_skill,
+                            "left_field": v_level,
+                            "score": points,
+                            "score_percentile": 0.0,
+                            "missing": v_skill,
+                            "right_field": "missing",
+                            "msg": f"{points} points vacancy '{v_skill}' {v_level} does not exist in resume json"
+                        })
+                    else:
+                        unknown_skills.append((v_skill, v_level))
+                        protocol_entries.append({
+                            "left": v_skill,
+                            "left_field": v_level,
+                            "score": 0,
+                            "score_percentile": 0.0,
+                            "missing": v_skill,
+                            "right_field": "unknown",
+                            "msg": f"0 points vacancy '{v_skill}' {v_level} is unknown (not in tech/synonyms), no penalty"
+                        })
 
+        # Calculate score_percentile for each entry
         total_abs_score = sum(abs(e['score']) for e in protocol_entries)
         for entry in protocol_entries:
             if total_abs_score > 0:

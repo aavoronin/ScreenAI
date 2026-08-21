@@ -307,7 +307,7 @@ class AI_Helper:
             if len(model_short) > 45:
                 model_short = "..." + model_short[-42:]
             status = "✅" if display_r['success'] else "❌"
-            score_str = f"{display_r.get('score', 0):>6}"
+            score_str = f"{display_r.get('score', 0):>6.2f}"
             pct_str = f"{display_r.get('score_percentile', 0.0):>5.2f}"
             print(
                 f"{vid:<15} | {model_short:<45} | {score_str} | {pct_str} | {display_r['duration']:>7.2f}s | {status}")
