@@ -17,8 +17,8 @@ class BaseVacancyEstimator:
     saving results, and managing per-vacancy JSON config files.
     """
     PARSING_VERSION = 4
-    ESTIMATION_VERSION = 5
-    PARSING_PORTION = 5
+    ESTIMATION_VERSION = 6
+    PARSING_PORTION = 100
 
     def __init__(self):
         pass
