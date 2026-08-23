@@ -7,6 +7,9 @@
     "output_dir": "C:\\Py\\ScreenAI\\out",
     "project_path": "C:\\Py\\ScreenAI",
     "input_dir": "C:\\Py\\ScreenAI\\input",
-    "hirify_urls_file_path": "C:\\Py\\ScreenAI\\Navigators\\hirify_urls.csv"
+    "hirify_urls_file_path": "C:\\Py\\ScreenAI\\Navigators\\hirify_urls.csv",
+    "linkedin_urls_file_path": "C:\\Py\\ScreenAI\\Navigators\\linkedin_urls.csv",
+    "hirify_log_path": "C:\\Py\\ScreenAI\\out\\Hirify\\log\\log.txt",
+    "linkedin_log_path": "C:\\Py\\ScreenAI\\out\\LinkedIn\\log\\log.txt"
   }
 }

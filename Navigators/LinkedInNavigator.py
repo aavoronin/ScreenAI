@@ -4,6 +4,8 @@ import re
 import subprocess
 import pyautogui
 import pyperclip
+import numpy as np
+from datetime import datetime
 from PIL import ImageGrab
 from Screen.LinkedInScreenParser import LinkedInScreenParser
 from Navigators.BaseNavigator import BaseNavigator
@@ -42,34 +44,46 @@ class LinkedInNavigator(BaseNavigator):
             self._toggle_numlock()
             print("NumLock toggled OFF. Waiting for next activation...")
 
-    def run_on_urls(self, urls_file_path: str = r"C:\Py\ScreenAI\Navigators\linkedin_urls.csv"):
+    def run_on_urls(self, max_urls: int = None):
         """
         Load URLs from a file, open each in Google Chrome, wait 30 seconds,
         and then run the LinkedIn automation logic.
-        Stops after processing all URLs.
+        Stops after processing max_urls URLs or all URLs.
         """
+        config = Config()
+        urls_file_path = config.get_path(
+                'linkedin_urls_file_path') or r"C:\Py\ScreenAI\Navigators\linkedin_urls.csv"
+        log_path = config.get_path('linkedin_log_path') or r"C:\Py\ScreenAI\out\LinkedIn\log\log.txt"
+
         if not os.path.exists(urls_file_path):
             print(f"⚠️ URLs file not found: {urls_file_path}")
             return
 
         with open(urls_file_path, 'r', encoding='utf-8') as f:
-            urls = [line.strip() for line in f if line.strip()]
+            urls = list(dict.fromkeys(line.strip() for line in f if line.strip()))
 
         if not urls:
             print("⚠️ No URLs found in the file.")
             return
 
-        print(f"🔍 Found {len(urls)} URLs to process.")
+        url_log = self._load_url_log(log_path)
 
-        for i, url in enumerate(urls):
-            if len(url) < 20:
-                continue
-            print(f"🌐 [{i + 1}/{len(urls)}] Processing URL: {url}")
+        processed_count = 0
+        while True:
+            if max_urls is not None and processed_count >= max_urls:
+                print(f"✅ Reached max_urls limit ({max_urls}). Stopping.")
+                break
+
+            next_url = self._select_next_url(urls, url_log)
+            if next_url is None:
+                print("✅ All URLs have been processed and logged. No more URLs to process.")
+                break
+
+            print(f"\n🌐 [{processed_count + 1}] Processing URL: {next_url}")
 
             # Execute Google Chrome with this URL
             chrome_paths = [
                 r"C:\Program Files\Google\Chrome\Application\chrome.exe",
-                #r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe"
             ]
             chrome_executable = None
             for path in chrome_paths:
@@ -78,10 +92,10 @@ class LinkedInNavigator(BaseNavigator):
                     break
 
             if chrome_executable:
-                subprocess.Popen([chrome_executable, url])
+                subprocess.Popen([chrome_executable, next_url])
             else:
                 # Fallback to default browser on Windows
-                os.startfile(url)
+                os.startfile(next_url)
 
             # Wait 30 seconds
             print("⏳ Waiting 30 seconds for the page to load...")
@@ -92,17 +106,18 @@ class LinkedInNavigator(BaseNavigator):
                 print("🤖 Starting LinkedIn automation logic for this URL...")
                 self._execute_linkedin_automation()
             except Exception as e:
-                continue
+                print(f"⚠️ Error during automation: {e}")
 
-        print("✅ Finished processing all URLs.")
+            url_log[next_url] = datetime.now()
+            self._save_url_log(log_path, url_log)
+
+            processed_count += 1
+
+        print("✅ Finished processing URLs.")
 
     def _execute_linkedin_automation(self):
         processed_urls = set()
-        skipped_urls = list()
-        MAX_SKIPPED_URLS = self.MAX_CLOSE_BUTTONS
-        MAX_SKIPPED_URLS_IN_ROW = self.MAX_CLOSE_BUTTONS // 3 + 2
         skipped_urls_in_row = 0
-
         close_button_clicks = 0
         general_abort = False
         while not general_abort:
@@ -128,7 +143,7 @@ class LinkedInNavigator(BaseNavigator):
                 print(f" Reached MAX_CLOSE_BUTTONS ({self.MAX_CLOSE_BUTTONS} unique URLs). Terminating logic.")
                 break
 
-            if close_button_clicks >= self.MAX_CLOSE_BUTTONS_CLICKS:
+            if close_button_clicks >= self.MAX_CLOSE_BUTTONS_CLICKS or general_abort:
                 print(f" Reached MAX_CLOSE_BUTTONS_CLICKS ({self.MAX_CLOSE_BUTTONS_CLICKS} clicks). Terminating logic.")
                 break
 
@@ -138,7 +153,7 @@ class LinkedInNavigator(BaseNavigator):
             for pair in close_pairs:
                 if len(processed_urls) >= self.MAX_CLOSE_BUTTONS:
                     break
-                if close_button_clicks >= self.MAX_CLOSE_BUTTONS_CLICKS:
+                if close_button_clicks >= self.MAX_CLOSE_BUTTONS_CLICKS or general_abort:
                     break
                 print(pair)
 
@@ -146,14 +161,14 @@ class LinkedInNavigator(BaseNavigator):
                 # Click left 10% of the close button
                 dx = (close_bbox[2] - close_bbox[0]) * 4
                 dy = (close_bbox[3] - close_bbox[1]) * 0.3
-                self.click_area_near_bbox(close_bbox, dx= -dx, dy=-dy)
+                self.click_area_near_bbox(close_bbox, dx=-dx, dy=-dy)
                 close_button_clicks += 1
                 # Wait 5 sec
                 time.sleep(5)
                 # Find first bbox in _linkedin_buttons
-                #if linkedin_buttons:
-                #first_linkedin_bbox = linkedin_buttons[0]['bbox']
-                #self.click_bbox_center(first_linkedin_bbox)
+                # if linkedin_buttons:
+                # first_linkedin_bbox = linkedin_buttons[0]['bbox']
+                # self.click_bbox_center(first_linkedin_bbox)
                 pyautogui.hotkey('ctrl', 'l')
                 # Wait for Chrome to gain focus
                 time.sleep(0.5)
@@ -172,22 +187,9 @@ class LinkedInNavigator(BaseNavigator):
                         print(f" ✅ New URL added. Total unique URLs: {len(processed_urls)}")
                     else:
                         skipped_urls_in_row += 1
-                        skipped_urls.append(clipboard_text)
-                        print(f" ⚠️ URL already processed. Skipping. "
-                              f"({len(skipped_urls)} skipped, {skipped_urls_in_row} skipped in row)")
-                        if (len(skipped_urls) > MAX_SKIPPED_URLS or
-                                skipped_urls_in_row >= MAX_SKIPPED_URLS_IN_ROW):
-                            print(f" We are waisting time. Aborting.")
-                            general_abort = True
-                        if skipped_urls_in_row > 30 and len(skipped_urls) > 30 and \
-                                len(set(skipped_urls[:30])) < 8:
-                            print(f" We are waisting time. No new recent urls. Aborting.")
-                            general_abort = True
-                        if skipped_urls_in_row > 15 and len(skipped_urls) > 15 and \
-                                len(set(skipped_urls[:15])) < 4:
-                            print(f" We are waisting time. No new recent urls. Aborting.")
-                            general_abort = True
+                        print(f" ⚠️ URL already processed. Skipping. (skipped_urls_in_row: {skipped_urls_in_row})")
                 else:
+                    skipped_urls_in_row += 1
                     print(" ⚠️ Clipboard text is empty. Doing nothing.")
                 # Continue loop to next close button
                 continue
@@ -197,9 +199,9 @@ class LinkedInNavigator(BaseNavigator):
                 break
 
             # Termination Condition 3: No new URLs found in this pass
-            #if not found_new_url_in_pass and not next_buttons:
-            #    print("🛑 No new URLs found in this pass. Terminating logic.")
-            #    break
+            # if not found_new_url_in_pass and not next_buttons:
+            # print("🛑 No new URLs found in this pass. Terminating logic.")
+            # break
 
             # 3. Check Next button or Scroll Down button
             if next_buttons:
@@ -209,9 +211,26 @@ class LinkedInNavigator(BaseNavigator):
                 # Loop continues, which will parse screen again
             elif scroll_downs:
                 print(f"️ Scroll down (triangle_down) detected. Clicking {self.MAX_SCROLL_DOWNS} times...")
+                screenshot_before = ImageGrab.grab().convert('L')
                 for _ in range(self.MAX_SCROLL_DOWNS):
                     self.click_bbox_center(scroll_downs[0]['bbox'])
                     time.sleep(0.3)  # small pause between clicks
+
+                screenshot_after = ImageGrab.grab().convert('L')
+
+                arr_before = np.array(screenshot_before)
+                arr_after = np.array(screenshot_after)
+
+                diff_pixels = np.sum(arr_before != arr_after)
+                total_pixels = arr_before.size
+                diff_percent = diff_pixels / total_pixels
+
+                print(f"📊 Screen difference after scroll: {diff_percent:.4f} ({diff_percent * 100:.2f}%)")
+
+                if diff_percent < 0.035 and not next_buttons:
+                    print(
+                        "🛑 Screen did not move significantly and no Next button detected. Setting general_abort = True.")
+                    general_abort = True
                 # Loop continues, which will parse screen again
             else:
                 # Termination Condition 2: Neither Next nor triangle_down found

@@ -4,6 +4,7 @@ import re
 import subprocess
 import pyautogui
 import pyperclip
+from datetime import datetime
 from PIL import ImageGrab
 from Screen.HirifyScreenParser import HirifyScreenParser
 from Navigators.BaseNavigator import BaseNavigator
@@ -29,31 +30,45 @@ class HirifyNavigator(BaseNavigator):
         # Estimator responsible for parsing saved MHTML files
         self.estimator = HirifyVacancyEstimator()
 
-    def run_on_urls(self):
+    def run_on_urls(self, max_urls: int = None):
         """Load URLs, open in Chrome, and run automation logic."""
-        if not os.path.exists(self.HIRIFY_URLS_FILE_PATH):
-            print(f"⚠️ URLs file not found: {self.HIRIFY_URLS_FILE_PATH}")
+        config = Config()
+        urls_file_path = config.get_path('hirify_urls_file_path') or self.HIRIFY_URLS_FILE_PATH
+        log_path = config.get_path('hirify_log_path') or r"C:\Py\ScreenAI\out\Hirify\log\log.txt"
+
+        if not os.path.exists(urls_file_path):
+            print(f"⚠️ URLs file not found: {urls_file_path}")
             return
 
-        with open(self.HIRIFY_URLS_FILE_PATH, 'r', encoding='utf-8') as f:
-            urls = [line.strip() for line in f if line.strip()]
+        with open(urls_file_path, 'r', encoding='utf-8') as f:
+            urls = list(dict.fromkeys(line.strip() for line in f if line.strip()))
 
         if not urls:
             print("⚠️ No URLs found in the file.")
             return
 
-        print(f"🔍 Found {len(urls)} URLs to process.")
+        url_log = self._load_url_log(log_path)
 
-        for i, url in enumerate(urls):
-            print(f"\n🌐 [{i + 1}/{len(urls)}] Processing URL: {url}")
+        processed_count = 0
+        while True:
+            if max_urls is not None and processed_count >= max_urls:
+                print(f"✅ Reached max_urls limit ({max_urls}). Stopping.")
+                break
+
+            next_url = self._select_next_url(urls, url_log)
+            if next_url is None:
+                print("✅ All URLs have been processed and logged. No more URLs to process.")
+                break
+
+            print(f"\n🌐 [{processed_count + 1}] Processing URL: {next_url}")
 
             chrome_paths = [r"C:\Program Files\Google\Chrome\Application\chrome.exe"]
             chrome_executable = next((path for path in chrome_paths if os.path.exists(path)), None)
 
             if chrome_executable:
-                subprocess.Popen([chrome_executable, url])
+                subprocess.Popen([chrome_executable, next_url])
             else:
-                os.startfile(url)
+                os.startfile(next_url)
 
             print("⏳ Waiting 30 seconds for the page to load...")
             time.sleep(30)
@@ -63,11 +78,16 @@ class HirifyNavigator(BaseNavigator):
                 print("🤖 Starting Hirify automation logic for this URL...")
                 self._execute_hirify_automation()
             except Exception as e:
+                print(f"⚠️ Error during automation: {e}")
                 continue
 
-            print(f"✅ Finished processing URL: {url}")
+            url_log[next_url] = datetime.now()
+            self._save_url_log(log_path, url_log)
 
-        print("\n✅ Finished processing all URLs.")
+            processed_count += 1
+            print(f"✅ Finished processing URL: {next_url}")
+
+        print("✅ Finished processing URLs.")
 
     def _execute_hirify_automation(self):
         """
@@ -80,7 +100,6 @@ class HirifyNavigator(BaseNavigator):
             for _ in range(10):
                 try:
                     self.check_wait()
-                    self.obtain_screen_size()
                     screenshot = ImageGrab.grab()
                     self.parser.parse_screen(screenshot)
                 except Exception as e:

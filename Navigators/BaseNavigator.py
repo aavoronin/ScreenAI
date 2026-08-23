@@ -7,7 +7,6 @@ from datetime import datetime
 import pyautogui
 import pyperclip
 from Estimators.BaseVacancyEstimator import BaseVacancyEstimator
-from ai_clients.start_server import start_wsl_server, stop_wsl_server
 
 
 class BaseNavigator:
@@ -73,9 +72,6 @@ class BaseNavigator:
             f"✅ Successfully saved MHTML: {dest_file} "
             f"(Total: {len(self.saved_pages)})"
         )
-        for _ in range(5):
-            pyautogui.press('esc')
-            time.sleep(0.1)
 
     def _is_numlock_on(self):
         return bool(ctypes.windll.user32.GetKeyState(0x90) & 1)
@@ -83,10 +79,60 @@ class BaseNavigator:
     def _toggle_numlock(self):
         pyautogui.press('numlock')
 
+    def _load_url_log(self, log_path):
+        """Load URL log. Returns dict: {url: last_used_datetime}"""
+        log = {}
+        if os.path.exists(log_path):
+            with open(log_path, 'r', encoding='utf-8') as f:
+                for line in f:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    parts = line.rsplit('|', 1)
+                    url = parts[0]
+                    if len(parts) == 2 and parts[1]:
+                        try:
+                            log[url] = datetime.fromisoformat(parts[1])
+                        except ValueError:
+                            log[url] = None
+                    else:
+                        log[url] = None
+        return log
+
+    def _save_url_log(self, log_path, url_log):
+        """Save URL log."""
+        os.makedirs(os.path.dirname(log_path), exist_ok=True)
+        with open(log_path, 'w', encoding='utf-8') as f:
+            for url, ts in url_log.items():
+                if ts:
+                    f.write(f"{url}|{ts.isoformat()}\n")
+                else:
+                    f.write(f"{url}|\n")
+
+    def _select_next_url(self, all_urls, url_log):
+        """Select the next URL to process based on least recently used."""
+        # 1. URLs not in log at all
+        unused = [u for u in all_urls if u not in url_log]
+        if unused:
+            return unused[0]
+
+        # 2. URLs in log but with None timestamp
+        none_ts = [u for u in all_urls if u in url_log and url_log[u] is None]
+        if none_ts:
+            return none_ts[0]
+
+        # 3. URLs used before, find oldest
+        used = [(u, url_log[u]) for u in all_urls if u in url_log and url_log[u] is not None]
+        if used:
+            used.sort(key=lambda x: x[1])
+            return used[0][0]
+
+        return None
+
     def group_vacancies(self):
         print(self.VACANCIES_OUTPUT_PATH)
         vacancies_dir = os.path.join(self.VACANCIES_OUTPUT_PATH)
-        chunks_dir = os.path.join(self.VACANCIES_OUTPUT_PATH, '..' , 'Chunks')
+        chunks_dir = os.path.join(self.VACANCIES_OUTPUT_PATH, '..', 'Chunks')
 
         if not os.path.exists(vacancies_dir):
             print(f"⚠️ Vacancies directory does not exist: {vacancies_dir}")
