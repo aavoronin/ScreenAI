@@ -336,6 +336,10 @@ class BaseVacancyEstimator:
             if config is None:
                 continue
 
+            # Skip if previously marked with an error flag
+            if config.get('estimation_error'):
+                continue
+
             current_version = self.convert_to_int(config.get('parsing_version', 0))
             if current_version != self.PARSING_VERSION:
                 continue
@@ -427,10 +431,21 @@ class BaseVacancyEstimator:
                 })
 
             l1_results, l1_success, l1_failed, l1_time, l1_model_times = (
-                ai_helper._apply_level_models_to_vacancies(
-                    prepared_vacancies, level_n=1, level_name="LEVEL 1"
-                )
+                ai_helper._apply_level_models_to_vacancies(prepared_vacancies, level_n=1, level_name="LEVEL 1")
             )
+
+            # Mark vacancies that failed on all LEVEL 1 models with an error flag
+            for v in l1_failed:
+                vid = v['vacancy_id']
+                json_path = v['json_path']
+                config_data = self.load_config(json_path)
+                if config_data is None:
+                    config_data = {}
+                config_data['estimation_error'] = "Failed on all LEVEL 1 models"
+                config_data['estimation_version'] = str(self.ESTIMATION_VERSION)
+                self.save_config(json_path, config_data)
+                print(
+                    f"⚠️ Vacancy {vid} failed on all LEVEL 1 models. Marked with error flag and skipped for future estimations.")
 
             l1_by_vacancy = {}
             for r in l1_results:
@@ -497,9 +512,7 @@ class BaseVacancyEstimator:
                 print(
                     f"\n🎯 {len(l2_candidates)} vacancy(ies) qualify for LEVEL 2 (score >= {vacancy_scoring.LEVEL_2_MIN_SCORE} or pct >= 0.5). {len(l2_skipped)} skipped (level 1 too low).")
                 l2_results, l2_success, l2_failed, l2_time, l2_model_times = (
-                    ai_helper._apply_level_models_to_vacancies(
-                        l2_candidates, level_n=2, level_name="LEVEL 2"
-                    )
+                    ai_helper._apply_level_models_to_vacancies(l2_candidates, level_n=2, level_name="LEVEL 2")
                 )
 
                 for r in l2_results:

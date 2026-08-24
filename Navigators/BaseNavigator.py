@@ -7,6 +7,7 @@ from datetime import datetime
 import pyautogui
 import pyperclip
 from PIL import ImageGrab
+import numpy as np
 
 from Estimators.BaseVacancyEstimator import BaseVacancyEstimator
 
@@ -249,10 +250,11 @@ class BaseNavigator:
             return True
         try:
             gray = img.convert('L')
-            small = gray.resize((50, 50))
-            arr = np.array(small)
+            #small = gray.resize((50, 50))
+            arr = np.array(gray)
             return np.mean(arr) < threshold
-        except Exception:
+        except Exception as e:
+            print(e)
             return True
 
     def _grab_screenshot(self):
