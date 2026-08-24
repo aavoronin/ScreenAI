@@ -40,13 +40,14 @@ if __name__ == "__main__":
         for nv in [nv1, nv2]:
             nv.analyze_collected()
     while True:
+        for nv in [nv1, nv2]:
+            for _ in range(1):
+                nv.AI_estimate_collected()
+
         for nv in [
             nv1,
             nv2]:
             #nv.analyze_collected()
             nv.run_on_urls(1)
 
-        for nv in [nv1, nv2]:
-            for _ in range(1):
-                nv.AI_estimate_collected()
 
