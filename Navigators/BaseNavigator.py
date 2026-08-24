@@ -6,6 +6,8 @@ from asyncio import start_server
 from datetime import datetime
 import pyautogui
 import pyperclip
+from PIL import ImageGrab
+
 from Estimators.BaseVacancyEstimator import BaseVacancyEstimator
 
 
@@ -239,6 +241,38 @@ class BaseNavigator:
         chunk_size = len(chunk_content.encode('utf-8'))
         print(f"📦 Chunk: {chunk_name} | Size: {chunk_size} bytes | "
               f"Files: {len(chunk)}")
+
+
+    def _is_screen_black(self, img, threshold=15):
+        """Check if an image is mostly black by sampling pixels."""
+        if img is None:
+            return True
+        try:
+            gray = img.convert('L')
+            small = gray.resize((50, 50))
+            arr = np.array(small)
+            return np.mean(arr) < threshold
+        except Exception:
+            return True
+
+    def _grab_screenshot(self):
+        """
+        Grab a screenshot from available screens.
+        If multiple screens are available, check each one and skip black screens.
+        """
+        try:
+            screens = ImageGrab.grab(all_screens=True)
+            if isinstance(screens, list):
+                for screen in screens:
+                    if not self._is_screen_black(screen):
+                        return screen
+                return screens[0] if screens else None
+            else:
+                if not self._is_screen_black(screens):
+                    return screens
+        except Exception:
+            pass
+        return ImageGrab.grab()
 
     def AI_estimate_collected(self):
         self.estimator.AI_estimate_collected(self.VACANCIES_OUTPUT_PATH)

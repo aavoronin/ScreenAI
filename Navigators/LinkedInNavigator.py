@@ -60,7 +60,9 @@ class LinkedInNavigator(BaseNavigator):
             return
 
         with open(urls_file_path, 'r', encoding='utf-8') as f:
-            urls = list(dict.fromkeys(line.strip() for line in f if line.strip()))
+            urls = list(dict.fromkeys(
+                line for line in [line.strip() for line in f]
+                    if line and not line.startswith("#")))
 
         if not urls:
             print("⚠️ No URLs found in the file.")
@@ -115,6 +117,7 @@ class LinkedInNavigator(BaseNavigator):
 
         print("✅ Finished processing URLs.")
 
+
     def _execute_linkedin_automation(self):
         processed_urls = set()
         skipped_urls_in_row = 0
@@ -127,7 +130,7 @@ class LinkedInNavigator(BaseNavigator):
                 try:
                     self.check_wait()
                     self.obtain_screen_size()
-                    screenshot = ImageGrab.grab()
+                    screenshot = self._grab_screenshot()
                     self.parser.parse_screen(screenshot)
                 except Exception as e:
                     time.sleep(10)
