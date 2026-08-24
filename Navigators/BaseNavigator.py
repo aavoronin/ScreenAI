@@ -8,7 +8,6 @@ import numpy as np
 import pyautogui
 import pyperclip
 from PIL import Image, ImageGrab
-import mss
 from Estimators.BaseVacancyEstimator import BaseVacancyEstimator
 from ai_clients.start_server import start_wsl_server, stop_wsl_server
 
@@ -41,46 +40,12 @@ class BaseNavigator:
 
     def _grab_screenshot(self):
         """
-        Grab a screenshot from available screens.
-        If multiple screens are available, check each one and skip black screens.
-        Handles 1, 2, 3 or more monitors.
+        Grab a screenshot using PIL ImageGrab.
         """
-        try:
-            # Use mss to get individual monitors
-            with mss.mss() as sct:
-                # monitors[0] is the virtual combined screen, monitors[1:] are physical screens
-                physical_monitors = sct.monitors[1:]
-
-                if not physical_monitors:
-                    # Fallback if no monitors detected
-                    return ImageGrab.grab()
-
-                # If only one physical monitor, just grab it
-                if len(physical_monitors) == 1:
-                    monitor = physical_monitors[0]
-                    screenshot = sct.grab(monitor)
-                    img = Image.frombytes('RGB', screenshot.size, screenshot.bgra, 'raw', 'BGRX')
-                    if not self._is_screen_black(img):
-                        return img
-                    return img
-
-                # Multiple monitors - check each one
-                for i, monitor in enumerate(physical_monitors, start=1):
-                    screenshot = sct.grab(monitor)
-                    img = Image.frombytes('RGB', screenshot.size, screenshot.bgra, 'raw', 'BGRX')
-                    if not self._is_screen_black(img):
-                        print(f"  📸 Using monitor {i} (non-black screen detected)")
-                        return img
-
-                # If all screens are black, return the first one
-                print("  ⚠️ All screens appear black, using first monitor")
-                screenshot = sct.grab(physical_monitors[0])
-                return Image.frombytes('RGB', screenshot.size, screenshot.bgra, 'raw', 'BGRX')
-
-        except Exception as e:
-            print(f"  ⚠️ Error grabbing screenshot with mss: {e}")
-            # Fallback to standard grab
-            return ImageGrab.grab()
+        #img = ImageGrab.grab(all_screens=True)
+        img = pyautogui.screenshot()
+        print(f"Screen is black {self._is_screen_black(img)}")
+        return img
 
     def get_pixel_center(self, bbox):
         x1, y1, x2, y2 = bbox
@@ -104,7 +69,7 @@ class BaseNavigator:
 
     def check_wait(self):
         if self._is_numlock_on():
-            print("⏸️ NumLock is ON. Waiting until it is turned off...")
+            print("️ NumLock is ON. Waiting until it is turned off...")
             while self._is_numlock_on():
                 time.sleep(1)
             print("▶️ NumLock is OFF. Resuming.")
@@ -192,7 +157,7 @@ class BaseNavigator:
     def group_vacancies(self):
         print(self.VACANCIES_OUTPUT_PATH)
         vacancies_dir = os.path.join(self.VACANCIES_OUTPUT_PATH)
-        chunks_dir = os.path.join(self.VACANCIES_OUTPUT_PATH, '..', 'Chunks')
+        chunks_dir = os.path.join(self.VACANCIES_OUTPUT_PATH, '..' , 'Chunks')
 
         if not os.path.exists(vacancies_dir):
             print(f"⚠️ Vacancies directory does not exist: {vacancies_dir}")
@@ -297,5 +262,8 @@ class BaseNavigator:
             f.write(chunk_content)
 
         chunk_size = len(chunk_content.encode('utf-8'))
-        print(f"📦 Chunk: {chunk_name} | Size: {chunk_size} bytes | "
+        print(f" Chunk: {chunk_name} | Size: {chunk_size} bytes | "
               f"Files: {len(chunk)}")
+
+    def AI_estimate_collected(self):
+        self.estimator.AI_estimate_collected(self.VACANCIES_OUTPUT_PATH)

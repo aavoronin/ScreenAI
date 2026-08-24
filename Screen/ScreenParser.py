@@ -224,11 +224,14 @@ class ScreenParser:
 
     def parse_screen(self, image: Image.Image):
         self.cleanup()
+
         # Apply screen transformation before processing
         image = self.transform_screen(image)
         self._original_image = image.convert("RGB")
+
         # Convert PIL Image to numpy array for template matching
         screenshot_np = np.array(self._original_image)
+
         ocr_bbox_rslt, _ = check_ocr_box(
             self._original_image,
             display_img=False,
@@ -236,24 +239,44 @@ class ScreenParser:
             easyocr_args={'paragraph': False, 'text_threshold': 0.9},
             use_paddleocr=False
         )
+
         ocr_text, ocr_bbox = ocr_bbox_rslt
-        _, self._label_coordinates, self._parsed_content_list = get_som_labeled_img(
-            image_source=self._original_image,
-            model=self.yolo_model,
-            BOX_TRESHOLD=0.05,
-            output_coord_in_ratio=True,
-            ocr_bbox=ocr_bbox,
-            caption_model_processor=self.caption_model_processor,
-            ocr_text=ocr_text,
-            use_local_semantics=True,
-            iou_threshold=0.9
-        )
+        if len(ocr_text) == 0 or len(ocr_bbox) == 0:
+            self._label_coordinates = []
+            self._parsed_content_list = []
+        else:
+            try:
+                result = get_som_labeled_img(
+                    image_source=self._original_image,
+                    model=self.yolo_model,
+                    BOX_TRESHOLD=0.05,
+                    output_coord_in_ratio=True,
+                    ocr_bbox=ocr_bbox,
+                    caption_model_processor=self.caption_model_processor,
+                    ocr_text=ocr_text,
+                    use_local_semantics=True,
+                    iou_threshold=0.9
+                )
+
+                if result and len(result) == 3:
+                    _, self._label_coordinates, self._parsed_content_list = result
+                else:
+                    print(f"️ get_som_labeled_img returned unexpected result: {result}")
+                    self._label_coordinates = []
+                    self._parsed_content_list = []
+
+            except Exception as e:
+                print(f"⚠️ Error in get_som_labeled_img: {e}")
+                self._label_coordinates = []
+                self._parsed_content_list = []
+
         # Detect custom symbols using template matching
         custom_symbols = self._detect_custom_symbols(screenshot_np)
         if custom_symbols:
-            print(f" 🔍 Detected {len(custom_symbols)} custom symbol(s) via template matching")
+            print(f"  Detected {len(custom_symbols)} custom symbol(s) via template matching")
             # Add custom symbols to parsed content list
             self._parsed_content_list.extend(custom_symbols)
+
         return self._parsed_content_list
 
     def get_bboxes(self):

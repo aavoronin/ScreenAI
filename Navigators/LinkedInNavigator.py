@@ -273,3 +273,4 @@ class LinkedInNavigator(BaseNavigator):
 
     def analyze_collected(self):
         self.estimator.estimate_vacancies()
+
