@@ -214,12 +214,15 @@ class LinkedInNavigator(BaseNavigator):
                 # Loop continues, which will parse screen again
             elif scroll_downs:
                 print(f"️ Scroll down (triangle_down) detected. Clicking {self.MAX_SCROLL_DOWNS} times...")
-                screenshot_before = ImageGrab.grab().convert('L')
+                #screenshot_before = ImageGrab.grab().convert('L')
+                pyautogui.press('esc')
+                time.sleep(0.3)
+                screenshot_before = self._grab_screenshot().convert('L')
                 for _ in range(self.MAX_SCROLL_DOWNS):
                     self.click_bbox_center(scroll_downs[0]['bbox'])
                     time.sleep(0.3)  # small pause between clicks
 
-                screenshot_after = ImageGrab.grab().convert('L')
+                screenshot_after = self._grab_screenshot().convert('L')
 
                 arr_before = np.array(screenshot_before)
                 arr_after = np.array(screenshot_after)
@@ -230,7 +233,7 @@ class LinkedInNavigator(BaseNavigator):
 
                 print(f"📊 Screen difference after scroll: {diff_percent:.4f} ({diff_percent * 100:.2f}%)")
 
-                if diff_percent < 0.035 and not next_buttons:
+                if diff_percent < 0.005 and not next_buttons:
                     print(
                         "🛑 Screen did not move significantly and no Next button detected. Setting general_abort = True.")
                     general_abort = True
