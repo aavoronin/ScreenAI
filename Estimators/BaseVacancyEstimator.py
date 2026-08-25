@@ -18,7 +18,6 @@ class BaseVacancyEstimator:
     for opening MHTML files, stripping tags, extracting text,
     saving results, and managing per-vacancy JSON config files.
     """
-
     PARSING_VERSION = 4
     ESTIMATION_VERSION = 14
     PARSING_PORTION = 200
@@ -37,25 +36,23 @@ class BaseVacancyEstimator:
         print(f"📝 Opening MHTML file: {file_path}")
         with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
             msg = email.message_from_file(f)
-
-        html_content = ""
-        if msg.is_multipart():
-            for part in msg.walk():
-                if part.get_content_type() == "text/html":
-                    charset = part.get_content_charset() or 'utf-8'
-                    payload = part.get_payload(decode=True)
-                    if payload:
-                        html_content = payload.decode(charset, errors='ignore')
-                    break
-        else:
-            charset = msg.get_content_charset() or 'utf-8'
-            payload = msg.get_payload(decode=True)
-            if payload:
-                html_content = payload.decode(charset, errors='ignore')
+            html_content = ""
+            if msg.is_multipart():
+                for part in msg.walk():
+                    if part.get_content_type() == "text/html":
+                        charset = part.get_content_charset() or 'utf-8'
+                        payload = part.get_payload(decode=True)
+                        if payload:
+                            html_content = payload.decode(charset, errors='ignore')
+                            break
             else:
-                html_content = msg.get_payload()
-
-        return html_content
+                charset = msg.get_content_charset() or 'utf-8'
+                payload = msg.get_payload(decode=True)
+                if payload:
+                    html_content = payload.decode(charset, errors='ignore')
+                else:
+                    html_content = msg.get_payload()
+            return html_content
 
     # ------------------------------------------------------------------
     # Generic HTML cleaning
@@ -188,7 +185,6 @@ class BaseVacancyEstimator:
         keywords = set()
         countries = set()
         industries = set()
-
         tech_section = config_data.get('tech', {})
         if isinstance(tech_section, dict):
             for category, items in tech_section.items():
@@ -198,7 +194,6 @@ class BaseVacancyEstimator:
                 elif isinstance(items, list):
                     for keyword in items:
                         keywords.add(keyword)
-
         synonyms_section = config_data.get(
             'synonyms', config_data.get('synonymns', [])
         )
@@ -214,7 +209,6 @@ class BaseVacancyEstimator:
                 if isinstance(items, list):
                     for keyword in items:
                         keywords.add(keyword)
-
         countries_section = config_data.get('countries', [])
         if isinstance(countries_section, list):
             for sublist in countries_section:
@@ -228,7 +222,6 @@ class BaseVacancyEstimator:
                 if isinstance(items, list):
                     for country in items:
                         countries.add(country)
-
         industries_section = config_data.get('industries', [])
         if isinstance(industries_section, list):
             for sublist in industries_section:
@@ -242,7 +235,6 @@ class BaseVacancyEstimator:
                 if isinstance(items, list):
                     for industry in items:
                         industries.add(industry)
-
         return sorted(keywords), sorted(countries), sorted(industries)
 
     def _find_matches_in_text(self, text, keywords):
@@ -270,20 +262,16 @@ class BaseVacancyEstimator:
         estimator_config = self._load_estimator_config()
         if not estimator_config:
             return config
-
         keywords_list, countries_list, industries_list = (
             self._extract_keywords_from_config(estimator_config)
         )
-
         matched_keywords = self._find_matches_in_text(text, keywords_list)
         matched_countries = self._find_matches_in_text(text, countries_list)
         matched_industries = self._find_matches_in_text(text, industries_list)
-
         config['keywords'] = matched_keywords
         config['countries'] = matched_countries
         config['industries'] = matched_industries
         config['parsing_version'] = str(self.PARSING_VERSION)
-
         return config
 
     # ------------------------------------------------------------------
@@ -316,49 +304,64 @@ class BaseVacancyEstimator:
         print(f"\n{'#' * 70}")
         print(f"# Starting AI estimation for {folder}")
         print(f"{'#' * 70}")
-
         resume_json = self._load_resume_points()
         if not resume_json:
             print("⚠️ Could not load resume points. Aborting.")
             return None
-
         estimator_config = self._load_estimator_config()
         known_tech_skills = self._get_all_known_tech_skills()
-
         valid_files = []
         json_files = glob.glob(os.path.join(folder, '*.json'))
+
+        total_json_files = len(json_files)
+        valid_json_count = 0
+        parsed_v4_count = 0
+        est_v14_level1_count = 0
+        est_v14_level2_count = 0
+
         for json_path in json_files:
             txt_path = os.path.splitext(json_path)[0] + '.txt'
             if not os.path.exists(txt_path):
                 continue
-
             config = self.load_config(json_path)
+
+            if config is not None:
+                valid_json_count += 1
+                current_version = self.convert_to_int(
+                    config.get('parsing_version', 0)
+                )
+                if current_version == self.PARSING_VERSION:
+                    parsed_v4_count += 1
+
+                est_version = self.convert_to_int(
+                    config.get('estimation_version', 0)
+                )
+                if est_version == self.ESTIMATION_VERSION:
+                    if 'estimation1' in config:
+                        est_v14_level1_count += 1
+                    if 'estimation2' in config:
+                        est_v14_level2_count += 1
+
             if config is None:
                 continue
-
             # Skip if previously marked with an error flag
             if config.get('estimation_error'):
                 continue
-
             current_version = self.convert_to_int(config.get('parsing_version', 0))
             if current_version != self.PARSING_VERSION:
                 continue
-
             est_version = self.convert_to_int(config.get('estimation_version', 0))
             if est_version is not None and est_version >= self.ESTIMATION_VERSION:
                 continue
-
             saved_date_str = config.get('saved_date', '1900-01-01')
             try:
                 saved_date = datetime.fromisoformat(saved_date_str)
             except (ValueError, TypeError):
                 saved_date = datetime(1900, 1, 1)
-
             filename = os.path.basename(json_path)
             match = re.search(r'(\d+)', filename)
             vacancy_id = match.group(1) if match else filename
             txt_size = os.path.getsize(txt_path)
-
             valid_files.append({
                 'vacancy_id': vacancy_id,
                 'saved_date': saved_date,
@@ -369,37 +372,44 @@ class BaseVacancyEstimator:
                 'json_name': filename,
                 'json_path': json_path
             })
-
         valid_files.sort(key=lambda x: x['saved_date'], reverse=True)
         selected_files = valid_files[:self.PARSING_PORTION]
 
-        print(f"\n📋 Selected {len(selected_files)} vacancies (portion of {self.PARSING_PORTION}):")
+        print(f"\n📊 Vacancy Folder Summary:")
+        print(f"  - Total .json files found: {total_json_files}")
+        print(f"  - Valid JSON configs: {valid_json_count}")
+        print(f"  - Parsed with version {self.PARSING_VERSION}: {parsed_v4_count}")
+        print(f"  - Estimated to Level 1 (ver {self.ESTIMATION_VERSION}): "
+              f"{est_v14_level1_count}")
+        print(f"  - Estimated to Level 2 (ver {self.ESTIMATION_VERSION}): "
+              f"{est_v14_level2_count}")
+        print(f"  - Ready for estimation: {len(valid_files)}")
+
+        print(f"\n📋 Selected {len(selected_files)} vacancies (portion of "
+              f"{self.PARSING_PORTION}):")
         for f in selected_files:
             print(
-                f"  vacancyId: {f['vacancy_id']}, saved_date: {f['saved_date_str']}, txt: {f['txt_name']} ({f['txt_size']} bytes), json: {f['json_name']}")
-
+                f"  vacancyId: {f['vacancy_id']}, saved_date: {f['saved_date_str']}, "
+                f"txt: {f['txt_name']} ({f['txt_size']} bytes), json: {f['json_name']}"
+            )
         if not selected_files:
             print("⚠️ No valid vacancies selected. Aborting.")
             return None
-
         prompt_text = self._load_prompt()
         if prompt_text is None:
             print("⚠️ Could not load prompt. Aborting.")
             return None
         print(f"📝 Loaded prompt: {self.PROMPT_FILE} ({len(prompt_text)} chars)")
-
         config = Config()
         cache_dir = config.get_path('cache')
         if not cache_dir:
             cache_dir = os.path.join(os.path.dirname(folder), 'cache')
-
         ai_helper = AI_Helper(
             cache_dir=cache_dir,
             prompt_text=prompt_text,
             vacancy_timeout=self.VACANCY_TIMEOUT,
             warmup_timeout=self.WARMUP_TIMEOUT
         )
-
         vacancy_scoring = VacancyScoring(
             resume_json=resume_json,
             known_tech_skills=known_tech_skills,
@@ -408,7 +418,6 @@ class BaseVacancyEstimator:
             load_config_func=self.load_config,
             save_config_func=self.save_config
         )
-
         overall_start = time.time()
         result_data = {
             'vacancies': selected_files,
@@ -416,7 +425,6 @@ class BaseVacancyEstimator:
             'level2': None,
             'total_time': 0.0
         }
-
         try:
             prepared_vacancies = []
             for v in selected_files:
@@ -429,11 +437,11 @@ class BaseVacancyEstimator:
                     'json_path': v['json_path'],
                     'cleaned_text': cleaned_txt
                 })
-
             l1_results, l1_success, l1_failed, l1_time, l1_model_times = (
-                ai_helper._apply_level_models_to_vacancies(prepared_vacancies, level_n=1, level_name="LEVEL 1")
+                ai_helper._apply_level_models_to_vacancies(
+                    prepared_vacancies, level_n=1, level_name="LEVEL 1"
+                )
             )
-
             # Mark vacancies that failed on all LEVEL 1 models with an error flag
             for v in l1_failed:
                 vid = v['vacancy_id']
@@ -445,37 +453,38 @@ class BaseVacancyEstimator:
                 config_data['estimation_version'] = str(self.ESTIMATION_VERSION)
                 self.save_config(json_path, config_data)
                 print(
-                    f"⚠️ Vacancy {vid} failed on all LEVEL 1 models. Marked with error flag and skipped for future estimations.")
-
+                    f"⚠️ Vacancy {vid} failed on all LEVEL 1 models. "
+                    f"Marked with error flag and skipped for future estimations."
+                )
             l1_by_vacancy = {}
             for r in l1_results:
                 if r['success']:
                     parsed = r.get('parsed_json') or {}
                     score, protocol, unknown = vacancy_scoring.calculate_score(parsed)
-
                     total_abs = sum(abs(e['score']) for e in protocol)
                     vacancy_pct = round(score / total_abs, 2) if total_abs > 0 else 0.0
-
                     r['score'] = score
                     r['score_percentile'] = vacancy_pct
                     r['protocol'] = protocol
                     r['unknown_skills'] = unknown
-
-                    v = next((v for v in selected_files if v['vacancy_id'] == r['vacancy_id']), None)
+                    v = next(
+                        (v for v in selected_files if v['vacancy_id'] == r['vacancy_id']),
+                        None
+                    )
                     if v:
-                        vacancy_scoring.save_estimation_result(v, 'estimation1', r['model_id'], parsed, score,
-                                                               vacancy_pct, protocol)
+                        vacancy_scoring.save_estimation_result(
+                            v, 'estimation1', r['model_id'], parsed, score,
+                            vacancy_pct, protocol
+                        )
                     l1_by_vacancy[r['vacancy_id']] = r
                 else:
                     r['score'] = 0
                     r['score_percentile'] = 0.0
                     r['protocol'] = [{"msg": f"Generation failed: {r.get('error')}"}]
                     r['unknown_skills'] = []
-
             ai_helper._print_level_summary("LEVEL 1", l1_results, l1_success, l1_failed, l1_time)
             ai_helper._print_model_usage_table("LEVEL 1", l1_results, l1_model_times)
             ai_helper._print_unknown_skills_summary("LEVEL 1", l1_results)
-
             result_data['level1'] = {
                 'results': l1_results,
                 'successful_vacancies': l1_success,
@@ -483,7 +492,6 @@ class BaseVacancyEstimator:
                 'total_time': l1_time,
                 'model_times': l1_model_times
             }
-
             l2_candidates = [
                 v for v in l1_success
                 if l1_by_vacancy.get(v['vacancy_id'], {}).get('score', 0) >= vacancy_scoring.LEVEL_2_MIN_SCORE
@@ -494,7 +502,6 @@ class BaseVacancyEstimator:
                 if l1_by_vacancy.get(v['vacancy_id'], {}).get('score', 0) < vacancy_scoring.LEVEL_2_MIN_SCORE
                    and l1_by_vacancy.get(v['vacancy_id'], {}).get('score_percentile', 0.0) < 0.5
             ]
-
             for v in l2_skipped:
                 l1_score = l1_by_vacancy[v['vacancy_id']]['score']
                 l1_pct = l1_by_vacancy[v['vacancy_id']]['score_percentile']
@@ -504,44 +511,50 @@ class BaseVacancyEstimator:
                     "score": 0,
                     "score_percentile": 0.0,
                     "right_field": "missing",
-                    "msg": f"Level 2 not started: level 1 score {l1_score} (pct: {l1_pct}) is below minimum {vacancy_scoring.LEVEL_2_MIN_SCORE} or 0.5"
+                    "msg": f"Level 2 not started: level 1 score {l1_score} (pct: {l1_pct}) "
+                           f"is below minimum {vacancy_scoring.LEVEL_2_MIN_SCORE} or 0.5"
                 }]
-                vacancy_scoring.save_estimation_result(v, 'estimation2', None, None, 0, 0.0, protocol)
-
+                vacancy_scoring.save_estimation_result(
+                    v, 'estimation2', None, None, 0, 0.0, protocol
+                )
             if l2_candidates:
                 print(
-                    f"\n🎯 {len(l2_candidates)} vacancy(ies) qualify for LEVEL 2 (score >= {vacancy_scoring.LEVEL_2_MIN_SCORE} or pct >= 0.5). {len(l2_skipped)} skipped (level 1 too low).")
-                l2_results, l2_success, l2_failed, l2_time, l2_model_times = (
-                    ai_helper._apply_level_models_to_vacancies(l2_candidates, level_n=2, level_name="LEVEL 2")
+                    f"\n🎯 {len(l2_candidates)} vacancy(ies) qualify for LEVEL 2 "
+                    f"(score >= {vacancy_scoring.LEVEL_2_MIN_SCORE} or pct >= 0.5). "
+                    f"{len(l2_skipped)} skipped (level 1 too low)."
                 )
-
+                l2_results, l2_success, l2_failed, l2_time, l2_model_times = (
+                    ai_helper._apply_level_models_to_vacancies(
+                        l2_candidates, level_n=2, level_name="LEVEL 2"
+                    )
+                )
                 for r in l2_results:
                     if r['success']:
                         parsed = r.get('parsed_json') or {}
                         score, protocol, unknown = vacancy_scoring.calculate_score(parsed)
-
                         total_abs = sum(abs(e['score']) for e in protocol)
                         vacancy_pct = round(score / total_abs, 2) if total_abs > 0 else 0.0
-
                         r['score'] = score
                         r['score_percentile'] = vacancy_pct
                         r['protocol'] = protocol
                         r['unknown_skills'] = unknown
-
-                        v = next((v for v in l2_candidates if v['vacancy_id'] == r['vacancy_id']), None)
+                        v = next(
+                            (v for v in l2_candidates if v['vacancy_id'] == r['vacancy_id']),
+                            None
+                        )
                         if v:
-                            vacancy_scoring.save_estimation_result(v, 'estimation2', r['model_id'], parsed, score,
-                                                                   vacancy_pct, protocol)
+                            vacancy_scoring.save_estimation_result(
+                                v, 'estimation2', r['model_id'], parsed, score,
+                                vacancy_pct, protocol
+                            )
                     else:
                         r['score'] = 0
                         r['score_percentile'] = 0.0
                         r['protocol'] = [{"msg": f"Generation failed: {r.get('error')}"}]
                         r['unknown_skills'] = []
-
                 ai_helper._print_level_summary("LEVEL 2", l2_results, l2_success, l2_failed, l2_time)
                 ai_helper._print_model_usage_table("LEVEL 2", l2_results, l2_model_times)
                 ai_helper._print_unknown_skills_summary("LEVEL 2", l2_results)
-
                 result_data['level2'] = {
                     'results': l2_results,
                     'successful_vacancies': l2_success,
@@ -551,7 +564,9 @@ class BaseVacancyEstimator:
                 }
             else:
                 print(
-                    f"\n⚠️ No vacancies qualify for LEVEL 2 (all level 1 scores < {vacancy_scoring.LEVEL_2_MIN_SCORE} and pct < 0.5).")
+                    f"\n⚠️ No vacancies qualify for LEVEL 2 (all level 1 scores < "
+                    f"{vacancy_scoring.LEVEL_2_MIN_SCORE} and pct < 0.5)."
+                )
                 result_data['level2'] = {
                     'results': [],
                     'successful_vacancies': [],
@@ -559,13 +574,10 @@ class BaseVacancyEstimator:
                     'total_time': 0.0,
                     'model_times': {}
                 }
-
         finally:
             ai_helper.stop_server()
-
         overall_time = time.time() - overall_start
         result_data['total_time'] = overall_time
-
         print(f"\n{'#' * 70}")
         print(f"# FINAL TIME SUMMARY")
         print(f"{'#' * 70}")
@@ -576,7 +588,5 @@ class BaseVacancyEstimator:
         print(f"  {'-' * 40}")
         print(f"  Total time:   {overall_time:>10.2f}s")
         print(f"{'#' * 70}")
-
         ChunkHelper.save_bulk_json_chunk(folder, selected_files)
-
         return result_data
