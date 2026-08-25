@@ -13,8 +13,8 @@
         "Clearwater, Florida",
         "Copenhagen, Denmark"
       ],
-      "days": 10,
-      "frequency": 3
+      "days": [10],
+      "frequency": 1
     },
     {
       "str": "(\"Generative AI\" OR \"LLM\" OR \"NLP\" OR \"Machine Learning\" OR \"ML\")",
@@ -28,8 +28,8 @@
         "Clearwater, Florida",
         "Copenhagen, Denmark"
       ],
-      "days": 10,
-      "frequency": 3
+      "days": [10],
+      "frequency": 1
     },
     {
       "str": "(\"ETL\" OR \"SSIS\" OR \"SSAS\" OR \"ETL\" OR \"Pipeline\" OR \"Py\" OR \"Python\" OR \"SQL\" OR \"Greenplum\" OR ORACLE OR \"AZURE\" OR \"VERTICA\" OR \"PostgreSQL\" OR \"T-SQL\" OR \"Clickhouse\")",
@@ -62,8 +62,8 @@
         "Melbourne, Australia",
         "Perth, Australia"
       ],
-      "days": [3],
-      "frequency": 1,
+      "days": [3, 10],
+      "frequency": 3,
       "locations-backup": [
         "Ventura, California",
         "Pasadena, California",

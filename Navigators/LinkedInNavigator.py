@@ -1,7 +1,11 @@
 import os
 import time
 import re
+import json
+import urllib.parse
 import subprocess
+from typing import Any
+
 import pyautogui
 import pyperclip
 import numpy as np
@@ -12,22 +16,21 @@ from Navigators.BaseNavigator import BaseNavigator
 from Estimators.LinkedInVacancyEstimator import LinkedInVacancyEstimator
 from cfg.cfg import Config
 
-
 class LinkedInNavigator(BaseNavigator):
     def __init__(self, omniparser_repo_path: str = None):
-        config = Config()
+        self.config = Config()
         if omniparser_repo_path is None:
-            omniparser_repo_path = config.get_path('omniparser_repo_path')
+            omniparser_repo_path = self.config.get_path('omniparser_repo_path')
         parser = LinkedInScreenParser(omniparser_repo_path)
-        output_dir = config.get_path('output_dir')
+        output_dir = self.config.get_path('output_dir')
         super().__init__(parser, output_dir)
+
         # Termination condition 1
-        self.MAX_CLOSE_BUTTONS = 200
+        self.MAX_CLOSE_BUTTONS = 300
         self.MAX_CLOSE_BUTTONS_CLICKS = self.MAX_CLOSE_BUTTONS * 2
         self.MAX_SCROLL_DOWNS = 6
-        self.VACANCIES_OUTPUT_PATH = config.get_path(
-            'vacancies_linkedin_output_path'
-        )
+        self.VACANCIES_OUTPUT_PATH = self.config.get_path(
+            'vacancies_linkedin_output_path')
         # Estimator responsible for parsing saved MHTML files
         self.estimator = LinkedInVacancyEstimator()
 
@@ -46,31 +49,17 @@ class LinkedInNavigator(BaseNavigator):
 
     def run_on_urls(self, max_urls: int = None):
         """
-        Load URLs from a file, open each in Google Chrome, wait 30 seconds,
+        Load URLs from a JSON file, open each in Google Chrome, wait 30 seconds,
         and then run the LinkedIn automation logic.
         Stops after processing max_urls URLs or all URLs.
         """
-        config = Config()
-        urls_file_path = config.get_path(
-                'linkedin_urls_file_path') or r"C:\Py\ScreenAI\Navigators\linkedin_urls.csv"
-        log_path = config.get_path('linkedin_log_path') or r"C:\Py\ScreenAI\out\LinkedIn\log\log.txt"
+        log_path = self.config.get_path('linkedin_log_path')
+        urls = self.get_list_of_urls()
 
-        if not os.path.exists(urls_file_path):
-            print(f"⚠️ URLs file not found: {urls_file_path}")
-            return
-
-        with open(urls_file_path, 'r', encoding='utf-8') as f:
-            urls = list(dict.fromkeys(
-                line for line in [line.strip() for line in f]
-                    if line and not line.startswith("#")))
-
-        if not urls:
-            print("⚠️ No URLs found in the file.")
-            return
 
         url_log = self._load_url_log(log_path)
-
         processed_count = 0
+
         while True:
             if max_urls is not None and processed_count >= max_urls:
                 print(f"✅ Reached max_urls limit ({max_urls}). Stopping.")
@@ -112,17 +101,55 @@ class LinkedInNavigator(BaseNavigator):
 
             url_log[next_url] = datetime.now()
             self._save_url_log(log_path, url_log)
-
             processed_count += 1
 
         print("✅ Finished processing URLs.")
 
+    def get_list_of_urls(self) -> tuple[str, list[Any]]:
+
+        urls_file_path = self.config.get_path('linkedin_urls_json_path')
+
+        if not os.path.exists(urls_file_path):
+            print(f"⚠️ URLs file not found: {urls_file_path}")
+
+        urls = []
+        try:
+            with open(urls_file_path, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+
+            for item in data.get("search-strings", []):
+                search_str = item.get("str", "")
+                locations = item.get("locations", [])
+                days = item.get("days", [])
+                if not isinstance(days, list):
+                    days = [days]
+
+                for location in locations:
+                    for day in days:
+                        query = f"{search_str} in {location} posted in the past {day} days"
+                        encoded_query = urllib.parse.quote(query)
+                        url = (
+                            f"https://www.linkedin.com/jobs/search-results/"
+                            f"?keywords={encoded_query}"
+                            #f"&origin=JOB_SEARCH_PAGE_JOB_FILTER&f_EA=true"
+                        )
+                        urls.append(url)
+
+            # Remove duplicates while preserving order
+            urls = list(dict.fromkeys(urls))
+        except Exception as e:
+            print(f"⚠️ Error reading JSON file: {e}")
+
+        if not urls:
+            print("⚠️ No URLs found in the file.")
+        return urls
 
     def _execute_linkedin_automation(self):
         processed_urls = set()
         skipped_urls_in_row = 0
         close_button_clicks = 0
         general_abort = False
+
         while not general_abort:
             # 1. Parse screen
             print("\nParsing screen...")
@@ -136,6 +163,7 @@ class LinkedInNavigator(BaseNavigator):
                     time.sleep(10)
                     continue
                 break
+
             close_pairs = self.parser._close_pairs
             linkedin_buttons = self.parser._linkedin_buttons
             next_buttons = self.parser._next_buttons
@@ -151,6 +179,7 @@ class LinkedInNavigator(BaseNavigator):
                 break
 
             found_new_url_in_pass = False
+
             # 2. Loop through close buttons
             print(f"🔄 Processing {len(close_pairs)} close buttons...")
             for pair in close_pairs:
@@ -158,29 +187,30 @@ class LinkedInNavigator(BaseNavigator):
                     break
                 if close_button_clicks >= self.MAX_CLOSE_BUTTONS_CLICKS or general_abort:
                     break
-                print(pair)
 
+                print(pair)
                 close_bbox = pair['close_button']['bbox']
+
                 # Click left 10% of the close button
                 dx = (close_bbox[2] - close_bbox[0]) * 4
                 dy = (close_bbox[3] - close_bbox[1]) * 0.3
                 self.click_area_near_bbox(close_bbox, dx=-dx, dy=-dy)
                 close_button_clicks += 1
+
                 # Wait 5 sec
                 time.sleep(5)
-                # Find first bbox in _linkedin_buttons
-                # if linkedin_buttons:
-                # first_linkedin_bbox = linkedin_buttons[0]['bbox']
-                # self.click_bbox_center(first_linkedin_bbox)
+
                 pyautogui.hotkey('ctrl', 'l')
                 # Wait for Chrome to gain focus
                 time.sleep(0.5)
                 # Send Ctrl+C
                 pyautogui.hotkey('ctrl', 'c')
                 time.sleep(0.5)  # Wait for clipboard to update
+
                 # Take text from clipboard
                 clipboard_text = pyperclip.paste().strip()
                 print(f" 📋 Clipboard text: '{clipboard_text}'")
+
                 if clipboard_text:
                     if clipboard_text not in processed_urls:
                         processed_urls.add(clipboard_text)
@@ -194,6 +224,7 @@ class LinkedInNavigator(BaseNavigator):
                 else:
                     skipped_urls_in_row += 1
                     print(" ⚠️ Clipboard text is empty. Doing nothing.")
+
                 # Continue loop to next close button
                 continue
 
@@ -214,19 +245,17 @@ class LinkedInNavigator(BaseNavigator):
                 # Loop continues, which will parse screen again
             elif scroll_downs:
                 print(f"️ Scroll down (triangle_down) detected. Clicking {self.MAX_SCROLL_DOWNS} times...")
-                #screenshot_before = ImageGrab.grab().convert('L')
                 pyautogui.press('esc')
                 time.sleep(0.3)
                 screenshot_before = self._grab_screenshot().convert('L')
+
                 for _ in range(self.MAX_SCROLL_DOWNS):
                     self.click_bbox_center(scroll_downs[0]['bbox'])
                     time.sleep(0.3)  # small pause between clicks
 
                 screenshot_after = self._grab_screenshot().convert('L')
-
                 arr_before = np.array(screenshot_before)
                 arr_after = np.array(screenshot_after)
-
                 diff_pixels = np.sum(arr_before != arr_after)
                 total_pixels = arr_before.size
                 diff_percent = diff_pixels / total_pixels
@@ -255,22 +284,25 @@ class LinkedInNavigator(BaseNavigator):
             print(f"⚠️ Could not extract currentJobId from URL: {url}")
             return
         job_id = match.group(1)
+
         # 2. Create destination file path
         dest_file = os.path.join(
             self.VACANCIES_OUTPUT_PATH,
             f'LinkedIn_Vacancy_{job_id}.mhtml'
         )
+
         # 3. Make folders if they do not exist
         os.makedirs(os.path.dirname(dest_file), exist_ok=True)
+
         # 4. Check if file already exists.
         if os.path.exists(dest_file):
             print(f"✅ MHTML file already exists: {dest_file}")
         else:
             # Delegate the actual Ctrl+S / typing / Enter to the base class
             self.save_browser_page_as_mhtml(dest_file)
+
         # 5. Let the estimator handle parsing / config / scoring
         self.estimator.estimate(dest_file, url)
 
     def analyze_collected(self):
         self.estimator.estimate_vacancies()
-

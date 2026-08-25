@@ -97,6 +97,9 @@ class BaseNavigator:
             f"✅ Successfully saved MHTML: {dest_file} "
             f"(Total: {len(self.saved_pages)})"
         )
+        for _ in range(3):
+            pyautogui.press('esc')
+            time.sleep(0.3)
 
     def _is_numlock_on(self):
         return bool(ctypes.windll.user32.GetKeyState(0x90) & 1)
