@@ -11,7 +11,6 @@ from PIL import Image, ImageGrab
 from Estimators.BaseVacancyEstimator import BaseVacancyEstimator
 from ai_clients.start_server import start_wsl_server, stop_wsl_server
 
-
 class BaseNavigator:
     def __init__(self, parser, output_dir: str):
         self.parser = parser
@@ -21,6 +20,9 @@ class BaseNavigator:
         self.estimator: BaseVacancyEstimator = None
         self.VACANCIES_OUTPUT_PATH = None
         self.saved_pages = []
+
+    def get_vacancies_output_path(self):
+        return self.VACANCIES_OUTPUT_PATH
 
     def obtain_screen_size(self):
         self.screen_width, self.screen_height = pyautogui.size()
@@ -143,32 +145,26 @@ class BaseNavigator:
         unused = [u for u in all_urls if u not in url_log]
         if unused:
             return unused[0]
-
         # 2. URLs in log but with None timestamp
         none_ts = [u for u in all_urls if u in url_log and url_log[u] is None]
         if none_ts:
             return none_ts[0]
-
         # 3. URLs used before, find oldest
         used = [(u, url_log[u]) for u in all_urls if u in url_log and url_log[u] is not None]
         if used:
             used.sort(key=lambda x: x[1])
             return used[0][0]
-
         return None
 
     def group_vacancies(self):
         print(self.VACANCIES_OUTPUT_PATH)
         vacancies_dir = os.path.join(self.VACANCIES_OUTPUT_PATH)
         chunks_dir = os.path.join(self.VACANCIES_OUTPUT_PATH, '..' , 'Chunks')
-
         if not os.path.exists(vacancies_dir):
             print(f"⚠️ Vacancies directory does not exist: {vacancies_dir}")
             return
-
         # Create the Chunks folder if it does not exist yet
         os.makedirs(chunks_dir, exist_ok=True)
-
         # Collect files matching <site>_Vacancy_<JobId>.txt
         file_pattern = re.compile(r'^(\w+)_Vacancy_(\d+)\.txt$')
         candidates = []

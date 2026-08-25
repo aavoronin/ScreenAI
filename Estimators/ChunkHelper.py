@@ -49,12 +49,14 @@ class ChunkHelper:
         """
         # Create MHTML filename (same as chunk but with .mhtml extension)
         html_filepath = os.path.splitext(chunk_filepath)[0] + '.html'
+
         # Prepare vacancy data with scores
         vacancy_rows = []
         for v in selected_files:
             vid = v['vacancy_id']
             if vid not in chunk_data:
                 continue
+
             vacancy_data = chunk_data[vid]
             est2 = vacancy_data.get('estimation2', {})
             est1 = vacancy_data.get('estimation1', {})
@@ -130,7 +132,7 @@ class ChunkHelper:
     @staticmethod
     def _generate_html_table(vacancy_rows):
         """Generate HTML table with collapsible sections."""
-        html = """<!DOCTYPE html>
+        html_parts = ["""<!DOCTYPE html>
 <html>
 <head>
 <meta charset="UTF-8">
@@ -260,7 +262,9 @@ function toggleSection(btn) {
 </tr>
 </thead>
 <tbody>
-"""
+"""]
+
+        row_html_parts = []
         for row in vacancy_rows:
             # Format title with EmploymentType and Country
             title = row.get('title', '')
@@ -298,7 +302,7 @@ function toggleSection(btn) {
             salary_str = " ".join(salary_parts) if salary_parts else ""
 
             # Main row
-            html += f"""            <tr>
+            row_html = f"""            <tr>
                 <td>{display_title}</td>
                 <td>{row['score']}</td>
                 <td>{row['score_percentile']:.2f}</td>
@@ -308,7 +312,7 @@ function toggleSection(btn) {
             </tr>
 """
             # Collapsible section
-            html += """            <tr class="collapsible-section">
+            row_html += """            <tr class="collapsible-section">
                 <td colspan="6">
 """
             # Nested table with skills comparison
@@ -316,7 +320,7 @@ function toggleSection(btn) {
             if estimation_data:
                 protocol = estimation_data.get('scoring_protocol', [])
                 if protocol:
-                    html += """                    <h3>Skills Comparison</h3>
+                    row_html += """                    <h3>Skills Comparison</h3>
                     <table class="nested-table">
                         <thead>
                             <tr>
@@ -339,7 +343,7 @@ function toggleSection(btn) {
                         right = entry.get('right', '')
                         right_field = entry.get('right_field', '')
                         msg = entry.get('msg', '')
-                        html += f"""                            <tr>
+                        row_html += f"""                            <tr>
                                 <td>{left}</td>
                                 <td>{left_field}</td>
                                 <td>{score}</td>
@@ -349,54 +353,51 @@ function toggleSection(btn) {
                                 <td>{msg}</td>
                             </tr>
 """
-                    html += """                        </tbody>
+                    row_html += """                        </tbody>
                     </table>
 """
                 else:
-                    html += """                    <h3>Skills Comparison</h3>
+                    row_html += """                    <h3>Skills Comparison</h3>
                     <p>No scoring protocol available.</p>
 """
             else:
-                html += """                    <h3>Skills Comparison</h3>
+                row_html += """                    <h3>Skills Comparison</h3>
                     <p>No estimation data available (both levels failed or missing).</p>
 """
 
             # File links
-            html += """                    <h3>Files</h3>
+            row_html += """                    <h3>Files</h3>
                     <div>
 """
             if os.path.exists(row['json_path']):
-                html += f'                        <a href="file:///{row["json_path"].replace("\\\\", "/")}" class="file-link">📄 JSON</a>\n'
+                row_html += f'                        <a href="file:///{row["json_path"].replace("\\\\", "/")}" class="file-link">📄 JSON</a>\n'
             if os.path.exists(row['txt_path']):
-                html += f'                        <a href="file:///{row["txt_path"].replace("\\\\", "/")}" class="file-link">📄 TXT</a>\n'
+                row_html += f'                        <a href="file:///{row["txt_path"].replace("\\\\", "/")}" class="file-link">📄 TXT</a>\n'
             if os.path.exists(row['mhtml_path']):
-                html += f'                        <a href="file:///{row["mhtml_path"].replace("\\\\", "/")}" class="file-link">📄 MHTML</a>\n'
+                row_html += f'                        <a href="file:///{row["mhtml_path"].replace("\\\\", "/")}" class="file-link">📄 MHTML</a>\n'
 
             if row.get('vacancy_url'):
                 v_url = row['vacancy_url']
-                html += (
-                    f'                        <a href="{v_url}" '
-                    f'class="file-link" target="_blank">🔗 Vacancy URL</a>\n'
-                )
+                row_html += f'                        <a href="{v_url}" class="file-link" target="_blank">🔗 Vacancy URL</a>\n'
             if row.get('apply_url'):
                 a_url = row['apply_url']
-                html += (
-                    f'                        <a href="{a_url}" '
-                    f'class="file-link" target="_blank">🔗 Apply URL</a>\n'
-                )
+                row_html += f'                        <a href="{a_url}" class="file-link" target="_blank">🔗 Apply URL</a>\n'
 
-            html += """                    </div>
+            row_html += """                    </div>
 """
             # Vacancy text (strip URLs)
             clean_vacancy_text = re.sub(r'https?://\S+', '', row['vacancy_text'])
-            html += f"""                    <h3>Vacancy Text</h3>
+            row_html += f"""                    <h3>Vacancy Text</h3>
                     <div class="vacancy-text">{clean_vacancy_text}</div>
                 </td>
             </tr>
 """
-        html += """        </tbody>
+            row_html_parts.append(row_html)
+
+        html_parts.append("".join(row_html_parts))
+        html_parts.append("""        </tbody>
 </table>
 </body>
 </html>
-"""
-        return html
+""")
+        return "".join(html_parts)

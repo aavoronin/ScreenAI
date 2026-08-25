@@ -30,6 +30,9 @@ class HirifyNavigator(BaseNavigator):
         # Estimator responsible for parsing saved MHTML files
         self.estimator = HirifyVacancyEstimator()
 
+    def get_vacancies_output_path(self):
+        return self.VACANCIES_OUTPUT_PATH
+
     def run_on_urls(self, max_urls: int = None):
         """Load URLs, open in Chrome, and run automation logic."""
         config = Config()

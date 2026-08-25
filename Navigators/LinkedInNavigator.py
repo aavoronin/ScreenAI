@@ -34,6 +34,9 @@ class LinkedInNavigator(BaseNavigator):
         # Estimator responsible for parsing saved MHTML files
         self.estimator = LinkedInVacancyEstimator()
 
+    def get_vacancies_output_path(self):
+        return self.VACANCIES_OUTPUT_PATH
+
     def run(self):
         print("Waiting for NumLock to be ON...")
         while True:
