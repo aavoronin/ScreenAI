@@ -17,7 +17,6 @@ class ChunkHelper:
         """
         chunks_dir = os.path.join(os.path.dirname(folder), 'Chunks')
         os.makedirs(chunks_dir, exist_ok=True)
-
         timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
         chunk_filename = f"linkedin_bulk_jsons_{len(selected_files)}_{timestamp}.json"
         chunk_filepath = os.path.join(chunks_dir, chunk_filename)
@@ -37,12 +36,10 @@ class ChunkHelper:
 
         with open(chunk_filepath, 'w', encoding='utf-8') as f:
             json.dump(chunk_data, f, indent=2, ensure_ascii=False)
-
         print(f"✅ Saved bulk JSON chunk to: {chunk_filepath}")
 
         # Create MHTML summary file
         ChunkHelper._create_html_summary(chunk_filepath, chunk_data, selected_files, chunks_dir)
-
         return chunk_filepath
 
     @staticmethod
@@ -52,16 +49,13 @@ class ChunkHelper:
         """
         # Create MHTML filename (same as chunk but with .mhtml extension)
         html_filepath = os.path.splitext(chunk_filepath)[0] + '.html'
-
         # Prepare vacancy data with scores
         vacancy_rows = []
         for v in selected_files:
             vid = v['vacancy_id']
             if vid not in chunk_data:
                 continue
-
             vacancy_data = chunk_data[vid]
-
             est2 = vacancy_data.get('estimation2', {})
             est1 = vacancy_data.get('estimation1', {})
 
@@ -78,6 +72,14 @@ class ChunkHelper:
                 score = 0
                 score_percentile = 0.0
                 estimation_data = {}
+
+            # Extract URLs, prioritizing estimation2 over estimation1
+            vacancy_url = (
+                est2.get('VacancyURL') if 'VacancyURL' in est2 else est1.get('VacancyURL')
+            )
+            apply_url = (
+                est2.get('ApplyURL') if 'ApplyURL' in est2 else est1.get('ApplyURL')
+            )
 
             # Get vacancy title
             vacancy_title = ""
@@ -109,7 +111,9 @@ class ChunkHelper:
                 'json_path': v['json_path'],
                 'txt_path': txt_path,
                 'mhtml_path': mhtml_path,
-                'vacancy_text': vacancy_text
+                'vacancy_text': vacancy_text,
+                'vacancy_url': vacancy_url,
+                'apply_url': apply_url
             })
 
         # Sort by score_percentile desc, then by score desc
@@ -121,7 +125,6 @@ class ChunkHelper:
         # Save as MHTML
         with open(html_filepath, 'w', encoding='utf-8') as f:
             f.write(html_content)
-
         print(f"✅ Created MHTML summary: {html_filepath}")
 
     @staticmethod
@@ -248,29 +251,25 @@ function toggleSection(btn) {
 <table>
 <thead>
 <tr>
-<th>VacancyTitle</th>
-<th>Score</th>
-<th>Score Percentile</th>
-<th>VacancyId</th>
-<th>Salary</th>
-<th></th>
+    <th>VacancyTitle</th>
+    <th>Score</th>
+    <th>Score Percentile</th>
+    <th>VacancyId</th>
+    <th>Salary</th>
+    <th></th>
 </tr>
 </thead>
 <tbody>
 """
-
         for row in vacancy_rows:
             # Format title with EmploymentType and Country
             title = row.get('title', '')
             json_data = row.get('estimation_data', {}).get('json', {})
-
             emp_type = json_data.get('EmploymentType')
             country = json_data.get('CandidateCountry') or json_data.get('EmployerCountry')
-
             extras = []
             if emp_type:
                 extras.append(str(emp_type).strip())
-
             if country:
                 if isinstance(country, list):
                     country_str = ", ".join(str(c).strip() for c in country if c)
@@ -289,7 +288,6 @@ function toggleSection(btn) {
             sal_max = json_data.get('SalaryMax', '')
             sal_curr = json_data.get('SalaryCurrency', '')
             sal_period = json_data.get('SalaryPeriod', '')
-
             salary_parts = []
             if sal_min or sal_max:
                 salary_parts.append(f"{sal_min}-{sal_max}")
@@ -297,7 +295,6 @@ function toggleSection(btn) {
                 salary_parts.append(sal_curr)
             if sal_period:
                 salary_parts.append(f"per {sal_period}")
-
             salary_str = " ".join(salary_parts) if salary_parts else ""
 
             # Main row
@@ -310,15 +307,12 @@ function toggleSection(btn) {
                 <td><button class="collapse-btn" onclick="toggleSection(this)">[+]</button></td>
             </tr>
 """
-
             # Collapsible section
             html += """            <tr class="collapsible-section">
                 <td colspan="6">
 """
-
             # Nested table with skills comparison
             estimation_data = row.get('estimation_data', {})
-
             if estimation_data:
                 protocol = estimation_data.get('scoring_protocol', [])
                 if protocol:
@@ -345,7 +339,6 @@ function toggleSection(btn) {
                         right = entry.get('right', '')
                         right_field = entry.get('right_field', '')
                         msg = entry.get('msg', '')
-
                         html += f"""                            <tr>
                                 <td>{left}</td>
                                 <td>{left_field}</td>
@@ -356,7 +349,6 @@ function toggleSection(btn) {
                                 <td>{msg}</td>
                             </tr>
 """
-
                     html += """                        </tbody>
                     </table>
 """
@@ -380,9 +372,21 @@ function toggleSection(btn) {
             if os.path.exists(row['mhtml_path']):
                 html += f'                        <a href="file:///{row["mhtml_path"].replace("\\\\", "/")}" class="file-link">📄 MHTML</a>\n'
 
+            if row.get('vacancy_url'):
+                v_url = row['vacancy_url']
+                html += (
+                    f'                        <a href="{v_url}" '
+                    f'class="file-link" target="_blank">🔗 Vacancy URL</a>\n'
+                )
+            if row.get('apply_url'):
+                a_url = row['apply_url']
+                html += (
+                    f'                        <a href="{a_url}" '
+                    f'class="file-link" target="_blank">🔗 Apply URL</a>\n'
+                )
+
             html += """                    </div>
 """
-
             # Vacancy text (strip URLs)
             clean_vacancy_text = re.sub(r'https?://\S+', '', row['vacancy_text'])
             html += f"""                    <h3>Vacancy Text</h3>
@@ -390,11 +394,9 @@ function toggleSection(btn) {
                 </td>
             </tr>
 """
-
         html += """        </tbody>
-    </table>
+</table>
 </body>
 </html>
 """
-
         return html
