@@ -3,6 +3,7 @@ from datetime import datetime, timedelta
 from Navigators.HirifyNavigator import HirifyNavigator
 from Navigators.LinkedInNavigator import LinkedInNavigator
 from Navigators.PeriodSummary import PeriodSummary
+from Estimators.ExchangeRates import ExchangeRates
 from Screen.HirifyScreenParser import HirifyScreenParser
 from ai_clients.start_server import start_wsl_server, stop_wsl_server
 from project_to_file.project_to_file import project_to_file_main
@@ -30,6 +31,10 @@ if __name__ == "__main__":
     config = Config()
     OMNIPARSER_REPO_PATH = config.get_path('omniparser_repo_path')
     project_to_file_main()
+
+    # Download latest exchange rates on startup
+    ExchangeRates.download_exchange_rates()
+
     # verify_gpu()
     # test_screenshots()
     nv1 = LinkedInNavigator(OMNIPARSER_REPO_PATH)
@@ -57,7 +62,7 @@ if __name__ == "__main__":
             nv.analyze_collected()
     while True:
         for nv in [nv1, nv1, nv1, nv2]:
+            nv.run_on_urls(1)
+        for nv in [nv1, nv1, nv1, nv2]:
             for _ in range(1):
                 nv.AI_estimate_collected()
-        for nv in [nv1, nv1, nv1, nv2]:
-            nv.run_on_urls(1)
