@@ -76,12 +76,11 @@ class ChunkHelper:
                 estimation_data = {}
 
             # Extract URLs, prioritizing estimation2 over estimation1
-            vacancy_url = (
-                est2.get('VacancyURL') if 'VacancyURL' in est2 else est1.get('VacancyURL')
-            )
-            apply_url = (
-                est2.get('ApplyURL') if 'ApplyURL' in est2 else est1.get('ApplyURL')
-            )
+            est2_json = est2.get('json') or {}
+            est1_json = est1.get('json') or {}
+
+            vacancy_url = est2_json.get('VacancyURL') or est1_json.get('VacancyURL')
+            apply_url = est2_json.get('ApplyURL') or est1_json.get('ApplyURL')
 
             # Get vacancy title
             vacancy_title = ""
