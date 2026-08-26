@@ -9,25 +9,26 @@ from datetime import datetime
 from ai_clients.start_server import start_wsl_server, stop_wsl_server
 from ai_clients.TextToTextClient import TextToTextClient
 
-
 class AI_Helper:
     LEVEL_1_MODELS = [
         "matrixportalx/Llama-3.3-8B-Instruct-128K-Q5_K_M-GGUF|GPU|32768",
         "NikolayKozloff/gemma-3-4b-it-Q8_0-GGUF|GPU|32768",
         "rktmeister/Meta-Llama-3.1-8B-Instruct-Q5_K_M-GGUF|GPU|32768",
     ]
-
     LEVEL_2_MODELS = [
         "Brunobkr/OFFELLIA_Q6_K_gemma-4-26B-A4B-it-ultra-uncensored-heretic.gguf|CPU|32768",
         "majentik/gemma-4-12B-it-RotorQuant-GGUF-Q5_K_M|CPU|32768",
     ]
 
-    def __init__(self, cache_dir, prompt_text, vacancy_timeout, warmup_timeout):
+    def __init__(self, cache_dir, prompt_text, vacancy_timeout, warmup_timeout, saved_prompts_dir=None):
         self.cache_dir = cache_dir
         os.makedirs(self.cache_dir, exist_ok=True)
         self.prompt_text = prompt_text
         self.vacancy_timeout = vacancy_timeout
         self.warmup_timeout = warmup_timeout
+        self.saved_prompts_dir = saved_prompts_dir
+        if self.saved_prompts_dir:
+            os.makedirs(self.saved_prompts_dir, exist_ok=True)
         self.client = None
         self._server_started = False
 
@@ -134,14 +135,34 @@ class AI_Helper:
                     print(f"  ❌ Warmup failed after {max_retries} attempts. Exiting.")
                     sys.exit(1)
 
-    def _apply_prompt_to_vacancy(self, model_id: str, prompt_text: str, cleaned_vacancy_text: str):
-        full_prompt = prompt_text + "\n" + cleaned_vacancy_text
-        cache_path = self._get_cache_file_path(model_id, full_prompt)
+    def _save_response_to_disk(self, txt_name: str, response: dict):
+        if not self.saved_prompts_dir or not txt_name:
+            return
+        try:
+            base_name = os.path.splitext(txt_name)[0]
+            response_path = os.path.join(self.saved_prompts_dir, base_name + '.json')
+            with open(response_path, 'w', encoding='utf-8') as f:
+                json.dump(response, f, indent=2, ensure_ascii=False)
+        except Exception as e:
+            print(f"  ⚠️ Could not save response to {response_path}: {e}")
 
+    def _apply_prompt_to_vacancy(self, model_id: str, prompt_text: str, cleaned_vacancy_text: str, txt_name: str = None):
+        full_prompt = prompt_text + "\n" + cleaned_vacancy_text
+
+        if self.saved_prompts_dir and txt_name:
+            try:
+                prompt_path = os.path.join(self.saved_prompts_dir, txt_name)
+                with open(prompt_path, 'w', encoding='utf-8') as f:
+                    f.write(full_prompt)
+            except Exception as e:
+                print(f"  ⚠️ Could not save prompt to {prompt_path}: {e}")
+
+        cache_path = self._get_cache_file_path(model_id, full_prompt)
         if os.path.exists(cache_path):
             print(f"  💾 Loading from cache: {os.path.basename(cache_path)}")
             try:
                 response = self._load_from_cache(cache_path)
+                self._save_response_to_disk(txt_name, response)
                 generated_text = response.get("generated_text", "")
                 if not isinstance(generated_text, str):
                     generated_text = str(generated_text)
@@ -158,14 +179,12 @@ class AI_Helper:
                 }
             except Exception as e:
                 print(f"  ⚠️ Cache read error: {e}. Regenerating...")
-
         total_start_time = time.time()
         try:
             response = self.client.generate(model_id, full_prompt, model_limit_seconds=self.vacancy_timeout)
             duration = time.time() - total_start_time
-
             self._save_to_cache(cache_path, response)
-
+            self._save_response_to_disk(txt_name, response)
             generated_text = response.get("generated_text", "")
             if not isinstance(generated_text, str):
                 generated_text = str(generated_text)
@@ -198,7 +217,6 @@ class AI_Helper:
         for i, v in enumerate(prepared_vacancies):
             vid = v['vacancy_id']
             print(f"{i:<6}  📄 Vacancy {vid} -> {model_id}")
-
             cleaned_text = v.get('cleaned_text', '')
             if not cleaned_text:
                 results.append({
@@ -214,13 +232,11 @@ class AI_Helper:
                 })
                 print(f"    ❌ Time: 0.00s | Error: empty_text")
                 continue
-
-            result = self._apply_prompt_to_vacancy(model_id, prompt_text, cleaned_text)
+            result = self._apply_prompt_to_vacancy(model_id, prompt_text, cleaned_text, txt_name=v.get('txt_name', ''))
             result['vacancy_id'] = vid
             result['txt_name'] = v.get('txt_name', '')
             result['model_id'] = model_id
             results.append(result)
-
             status = "✅" if result['success'] else "❌"
             cache_info = " (Cache)" if result.get('from_cache') else ""
             err = f" | Error: {result['error']}" if result['error'] else ""
@@ -236,54 +252,42 @@ class AI_Helper:
         if self.prompt_text is None:
             print("⚠️ Could not load prompt. Aborting level estimation.")
             return [], [], prepared_vacancies, 0.0, {}
-
         models = self.LEVEL_1_MODELS if level_n == 1 else self.LEVEL_2_MODELS
-
         print(f"\n{'=' * 70}")
         print(f"🎯 {level_name} - {len(prepared_vacancies)} vacancies, {len(models)} model(s)")
         print(f"{'=' * 70}")
-
         all_results = []
         model_times = {}
         remaining = list(prepared_vacancies)
         successful = []
         level_start = time.time()
-
         for model_id in models:
             if not remaining:
                 break
             print(f"\n🔄 Model: {model_id}")
             print(f"   Vacancies to process: {len(remaining)}")
             self._warmup_model(model_id)
-
             model_start = time.time()
             results = self._apply_model_to_vacancies(model_id, remaining, self.prompt_text)
             model_duration = time.time() - model_start
             model_times[model_id] = model_duration
             all_results.extend(results)
-
             new_remaining = []
             for r, v in zip(results, remaining):
                 if r['success']:
                     successful.append(v)
                 else:
                     new_remaining.append(v)
-
             succeeded_this_round = len(remaining) - len(new_remaining)
             print(f"\n--- {level_name} Model Summary: {model_id} ---")
             print(f"  Succeeded: {succeeded_this_round}/{len(remaining)} | Model Time: {model_duration:.2f}s")
-
             remaining = new_remaining
-
             if not remaining:
                 print(f"\n✅ All vacancies succeeded with {model_id}. Stopping {level_name}.")
                 break
-
         level_time = time.time() - level_start
-
         if remaining:
             print(f"\n⚠️ {len(remaining)} vacancy(ies) still failed after all {level_name} models.")
-
         return all_results, successful, remaining, level_time, model_times
 
     @staticmethod
@@ -294,12 +298,10 @@ class AI_Helper:
         header = f"{'Vacancy':<15} | {'Model':<45} | {'Score':>6} | {'Pct':>5} | {'Time':>8} | Status"
         print(header)
         print("-" * 70)
-
         by_vacancy = {}
         for r in all_results:
             vid = r['vacancy_id']
             by_vacancy.setdefault(vid, []).append(r)
-
         for vid, results in by_vacancy.items():
             successful_r = next((r for r in results if r['success']), None)
             display_r = successful_r if successful_r else results[-1]
@@ -311,7 +313,6 @@ class AI_Helper:
             pct_str = f"{display_r.get('score_percentile', 0.0):>5.2f}"
             print(
                 f"{vid:<15} | {model_short:<45} | {score_str} | {pct_str} | {display_r['duration']:>7.2f}s | {status}")
-
         print("-" * 70)
         print(f"Total {level_name}: {len(successful)} succeeded, {len(failed)} failed | Time: {level_time:.2f}s")
 
@@ -321,7 +322,6 @@ class AI_Helper:
         print("-" * 70)
         print(f"{'Model':<55} | {'Time':>8} | Calls")
         print("-" * 70)
-
         by_model = {}
         for r in all_results:
             mid = r['model_id']
@@ -331,7 +331,6 @@ class AI_Helper:
             by_model[mid]['time'] += r['duration']
             if r['success']:
                 by_model[mid]['success'] += 1
-
         for mid, stats in by_model.items():
             total_time = model_times.get(mid, stats['time'])
             model_short = mid if len(mid) <= 55 else "..." + mid[-52:]
@@ -349,7 +348,6 @@ class AI_Helper:
                 for skill, level in r['unknown_skills']:
                     key = f"{skill} ({level})"
                     skill_counts[key] = skill_counts.get(key, 0) + 1
-
         if skill_counts:
             sorted_skills = sorted(skill_counts.items(), key=lambda x: (-x[1], x[0]))
             for skill_key, count in sorted_skills:

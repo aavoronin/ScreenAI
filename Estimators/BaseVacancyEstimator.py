@@ -11,7 +11,6 @@ from Estimators.AI_Helper import AI_Helper
 from Estimators.VacancyScoring import VacancyScoring
 from Estimators.ChunkHelper import ChunkHelper
 
-
 class BaseVacancyEstimator:
     """
     Base class for vacancy estimators. Provides reusable methods
@@ -36,23 +35,23 @@ class BaseVacancyEstimator:
         print(f"📝 Opening MHTML file: {file_path}")
         with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
             msg = email.message_from_file(f)
-            html_content = ""
-            if msg.is_multipart():
-                for part in msg.walk():
-                    if part.get_content_type() == "text/html":
-                        charset = part.get_content_charset() or 'utf-8'
-                        payload = part.get_payload(decode=True)
-                        if payload:
-                            html_content = payload.decode(charset, errors='ignore')
-                            break
+        html_content = ""
+        if msg.is_multipart():
+            for part in msg.walk():
+                if part.get_content_type() == "text/html":
+                    charset = part.get_content_charset() or 'utf-8'
+                    payload = part.get_payload(decode=True)
+                    if payload:
+                        html_content = payload.decode(charset, errors='ignore')
+                    break
+        else:
+            charset = msg.get_content_charset() or 'utf-8'
+            payload = msg.get_payload(decode=True)
+            if payload:
+                html_content = payload.decode(charset, errors='ignore')
             else:
-                charset = msg.get_content_charset() or 'utf-8'
-                payload = msg.get_payload(decode=True)
-                if payload:
-                    html_content = payload.decode(charset, errors='ignore')
-                else:
-                    html_content = msg.get_payload()
-            return html_content
+                html_content = msg.get_payload()
+        return html_content
 
     # ------------------------------------------------------------------
     # Generic HTML cleaning
@@ -312,36 +311,34 @@ class BaseVacancyEstimator:
         known_tech_skills = self._get_all_known_tech_skills()
         valid_files = []
         json_files = glob.glob(os.path.join(folder, '*.json'))
-
         total_json_files = len(json_files)
         valid_json_count = 0
-        parsed_v4_count = 0
+        correct_parsed_version_count = 0
         est_v14_level1_count = 0
         est_v14_level2_count = 0
-
+        est_v14_level1_and_not_level2_count = 0
         for json_path in json_files:
             txt_path = os.path.splitext(json_path)[0] + '.txt'
             if not os.path.exists(txt_path):
                 continue
             config = self.load_config(json_path)
-
             if config is not None:
                 valid_json_count += 1
                 current_version = self.convert_to_int(
                     config.get('parsing_version', 0)
                 )
                 if current_version == self.PARSING_VERSION:
-                    parsed_v4_count += 1
-
-                est_version = self.convert_to_int(
-                    config.get('estimation_version', 0)
-                )
-                if est_version == self.ESTIMATION_VERSION:
-                    if 'estimation1' in config:
-                        est_v14_level1_count += 1
-                    if 'estimation2' in config:
-                        est_v14_level2_count += 1
-
+                    correct_parsed_version_count += 1
+                    est_version = self.convert_to_int(
+                        config.get('estimation_version', 0)
+                    )
+                    if est_version == self.ESTIMATION_VERSION:
+                        if 'estimation1' in config:
+                            est_v14_level1_count += 1
+                        if 'estimation2' in config:
+                            est_v14_level2_count += 1
+                        if 'estimation1' in config and 'estimation2' not in config:
+                            est_v14_level1_and_not_level2_count += 1
             if config is None:
                 continue
             # Skip if previously marked with an error flag
@@ -351,7 +348,8 @@ class BaseVacancyEstimator:
             if current_version != self.PARSING_VERSION:
                 continue
             est_version = self.convert_to_int(config.get('estimation_version', 0))
-            if est_version is not None and est_version >= self.ESTIMATION_VERSION:
+            if est_version is not None and est_version >= self.ESTIMATION_VERSION and \
+                    not ('estimation1' in config and 'estimation2' not in config):
                 continue
             saved_date_str = config.get('saved_date', '1900-01-01')
             try:
@@ -374,17 +372,17 @@ class BaseVacancyEstimator:
             })
         valid_files.sort(key=lambda x: x['saved_date'], reverse=True)
         selected_files = valid_files[:self.PARSING_PORTION]
-
         print(f"\n📊 Vacancy Folder Summary:")
         print(f"  - Total .json files found: {total_json_files}")
         print(f"  - Valid JSON configs: {valid_json_count}")
-        print(f"  - Parsed with version {self.PARSING_VERSION}: {parsed_v4_count}")
+        print(f"  - Parsed with version {self.PARSING_VERSION}: {correct_parsed_version_count}")
         print(f"  - Estimated to Level 1 (ver {self.ESTIMATION_VERSION}): "
               f"{est_v14_level1_count}")
         print(f"  - Estimated to Level 2 (ver {self.ESTIMATION_VERSION}): "
               f"{est_v14_level2_count}")
         print(f"  - Ready for estimation: {len(valid_files)}")
-
+        print(f"  - Estimated to Level 1 and not to level 2): "
+              f"{est_v14_level1_and_not_level2_count}")
         print(f"\n📋 Selected {len(selected_files)} vacancies (portion of "
               f"{self.PARSING_PORTION}):")
         for f in selected_files:
@@ -404,11 +402,13 @@ class BaseVacancyEstimator:
         cache_dir = config.get_path('cache')
         if not cache_dir:
             cache_dir = os.path.join(os.path.dirname(folder), 'cache')
+        saved_prompts_dir = config.get_path('saved_prompts_path')
         ai_helper = AI_Helper(
             cache_dir=cache_dir,
             prompt_text=prompt_text,
             vacancy_timeout=self.VACANCY_TIMEOUT,
-            warmup_timeout=self.WARMUP_TIMEOUT
+            warmup_timeout=self.WARMUP_TIMEOUT,
+            saved_prompts_dir=saved_prompts_dir
         )
         vacancy_scoring = VacancyScoring(
             resume_json=resume_json,

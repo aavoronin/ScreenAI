@@ -12,6 +12,7 @@
     "linkedin_urls_json_path": "C:\\Py\\ScreenAI\\Navigators\\linkedin_urls.json",
     "hirify_log_path": "C:\\Py\\ScreenAI\\out\\Hirify\\log\\log.txt",
     "linkedin_log_path": "C:\\Py\\ScreenAI\\out\\LinkedIn\\log\\log.txt",
-    "summary_output_path": "C:\\Py\\ScreenAI\\out\\Summary"
+    "summary_output_path": "C:\\Py\\ScreenAI\\out\\Summary",
+    "saved_prompts_path": "C:\\Py\\ScreenAI\\out\\SavedPrompts"
   }
 }
