@@ -195,9 +195,9 @@ class AI_Helper:
 
     def _apply_model_to_vacancies(self, model_id, prepared_vacancies, prompt_text):
         results = []
-        for v in prepared_vacancies:
+        for i, v in enumerate(prepared_vacancies):
             vid = v['vacancy_id']
-            print(f"  📄 Vacancy {vid} -> {model_id}")
+            print(f"{i:<6}  📄 Vacancy {vid} -> {model_id}")
 
             cleaned_text = v.get('cleaned_text', '')
             if not cleaned_text:

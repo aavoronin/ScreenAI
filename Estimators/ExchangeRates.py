@@ -4,7 +4,11 @@ import json
 import glob
 from datetime import datetime
 from cfg.cfg import Config
-import pandas as pd
+
+try:
+    import pandas as pd
+except ImportError:
+    pd = None
 
 
 class ExchangeRates:
@@ -12,8 +16,9 @@ class ExchangeRates:
     def download_exchange_rates():
         """
         Download exchange rates for USD and EUR against major currencies.
-        Saves the result as a CSV file (and .txt variant) in the summary
-        output path. Uses free, no-key-required REST APIs.
+        Saves the result as a CSV file in the summary output path.
+        Uses free, no-key-required REST APIs.
+        If file for today already exists, skips download.
         """
         config = Config()
         output_dir = config.get_path('summary_output_path')
@@ -23,19 +28,12 @@ class ExchangeRates:
 
         date_str = datetime.now().strftime("%Y-%m-%d")
         filename_csv = f"exchange_rates_{date_str}.csv"
-        filename_txt = f"exchange_rates_{date_str}.txt"
         filepath_csv = os.path.join(output_dir, filename_csv)
-        filepath_txt = os.path.join(output_dir, filename_txt)
 
-        # Check if a valid file already exists for today
-        if pd is not None and os.path.exists(filepath_csv):
-            try:
-                df_check = pd.read_csv(filepath_csv)
-                if 'Rate_USD' in df_check.columns and df_check['Rate_USD'].notna().any():
-                    print(f"✅ Valid exchange rates for {date_str} already exist.")
-                    return filepath_csv
-            except Exception:
-                pass
+        # Check if file for today already exists
+        if os.path.exists(filepath_csv):
+            print(f"✅ Exchange rates for {date_str} already exist at: {filepath_csv}")
+            return filepath_csv
 
         # Free, reliable, no-API-key required sources
         urls = [
@@ -99,10 +97,6 @@ class ExchangeRates:
             df = pd.DataFrame(rows)
             df.to_csv(filepath_csv, index=False)
             print(f"✅ Saved exchange rates to: {filepath_csv}")
-
-            # Also save as .txt to strictly satisfy the requested format
-            df.to_csv(filepath_txt, index=False)
-            print(f"✅ Saved exchange rates to: {filepath_txt}")
             return filepath_csv
         else:
             print("⚠️ pandas is not installed. Cannot save as DataFrame/CSV.")
@@ -127,9 +121,8 @@ class ExchangeRates:
             print(f"⚠️ Output directory does not exist: {output_dir}")
             return None
 
-        # Search for both .csv and .txt variants
+        # Search for CSV files only
         files = glob.glob(os.path.join(output_dir, "exchange_rates_*.csv"))
-        files += glob.glob(os.path.join(output_dir, "exchange_rates_*.txt"))
 
         if not files:
             print("⚠️ No exchange rates files found.")

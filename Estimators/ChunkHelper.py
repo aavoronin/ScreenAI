@@ -2,12 +2,125 @@ import os
 import re
 import json
 from datetime import datetime
+from Estimators.ExchangeRates import ExchangeRates
+
+try:
+    import pandas as pd
+except ImportError:
+    pd = None
 
 
 class ChunkHelper:
     """
     Helper class for creating and saving bulk JSON chunks of vacancy data.
     """
+    # Constants for salary period conversion to annual
+    HOURS_PER_WEEK = 40
+    WEEKS_PER_YEAR = 52
+    DAYS_PER_WEEK = 5
+    MONTHS_PER_YEAR = 12
+
+    @staticmethod
+    def _parse_salary_value(val):
+        if val is None or val == '' or str(val).lower() == 'none':
+            return None
+        try:
+            return float(val)
+        except (ValueError, TypeError):
+            return None
+
+    @staticmethod
+    def _convert_to_annual(val, period):
+        if val is None:
+            return None
+        period_lower = str(period).lower() if period else ''
+        if 'hour' in period_lower:
+            return val * ChunkHelper.HOURS_PER_WEEK * ChunkHelper.WEEKS_PER_YEAR
+        elif 'day' in period_lower:
+            return val * ChunkHelper.DAYS_PER_WEEK * ChunkHelper.WEEKS_PER_YEAR
+        elif 'week' in period_lower:
+            return val * ChunkHelper.WEEKS_PER_YEAR
+        elif 'month' in period_lower:
+            return val * ChunkHelper.MONTHS_PER_YEAR
+        else:
+            return val
+
+    @staticmethod
+    def _convert_currency(amount, from_curr, to_curr, rates_df):
+        if amount is None or from_curr == to_curr:
+            return amount
+        if rates_df is None or pd is None:
+            return None
+
+        from_row = rates_df[rates_df['Currency'] == from_curr.upper()]
+        to_row = rates_df[rates_df['Currency'] == to_curr.upper()]
+
+        if from_row.empty or to_row.empty:
+            return None
+
+        from_rate_usd = from_row['Rate_USD'].values[0]
+        to_rate_usd = to_row['Rate_USD'].values[0]
+
+        if pd.isna(from_rate_usd) or pd.isna(to_rate_usd) or from_rate_usd == 0:
+            return None
+
+        amount_usd = amount / from_rate_usd
+        amount_target = amount_usd * to_rate_usd
+        return amount_target
+
+    @staticmethod
+    def _format_salary_display(sal_min, sal_max, sal_curr, sal_period, exchange_rates_df):
+        if not sal_curr:
+            return ""
+
+        min_val = ChunkHelper._parse_salary_value(sal_min)
+        max_val = ChunkHelper._parse_salary_value(sal_max)
+
+        if min_val is None and max_val is None:
+            return ""
+
+        ann_min = ChunkHelper._convert_to_annual(min_val, sal_period)
+        ann_max = ChunkHelper._convert_to_annual(max_val, sal_period)
+
+        curr = sal_curr.upper().strip()
+
+        def format_range(mn, mx, currency):
+            parts = []
+            if mn is not None and mx is not None:
+                parts.append(f"{mn:,.0f}-{mx:,.0f}")
+            elif mn is not None:
+                parts.append(f"{mn:,.0f}+")
+            elif mx is not None:
+                parts.append(f"up to {mx:,.0f}")
+            parts.append(currency)
+            parts.append("per year")
+            return " ".join(parts)
+
+        line1 = format_range(ann_min, ann_max, curr)
+        lines = [line1]
+
+        if curr == 'USD':
+            eur_min = ChunkHelper._convert_currency(ann_min, curr, 'EUR', exchange_rates_df)
+            eur_max = ChunkHelper._convert_currency(ann_max, curr, 'EUR', exchange_rates_df)
+            if eur_min is not None or eur_max is not None:
+                lines.append(format_range(eur_min, eur_max, 'EUR'))
+        elif curr == 'EUR':
+            usd_min = ChunkHelper._convert_currency(ann_min, curr, 'USD', exchange_rates_df)
+            usd_max = ChunkHelper._convert_currency(ann_max, curr, 'USD', exchange_rates_df)
+            if usd_min is not None or usd_max is not None:
+                lines.append(format_range(usd_min, usd_max, 'USD'))
+        else:
+            usd_min = ChunkHelper._convert_currency(ann_min, curr, 'USD', exchange_rates_df)
+            usd_max = ChunkHelper._convert_currency(ann_max, curr, 'USD', exchange_rates_df)
+            if usd_min is not None or usd_max is not None:
+                lines.append(format_range(usd_min, usd_max, 'USD'))
+
+            eur_min = ChunkHelper._convert_currency(ann_min, curr, 'EUR', exchange_rates_df)
+            eur_max = ChunkHelper._convert_currency(ann_max, curr, 'EUR', exchange_rates_df)
+            if eur_min is not None or eur_max is not None:
+                lines.append(format_range(eur_min, eur_max, 'EUR'))
+
+        return "<br>".join(lines)
 
     @staticmethod
     def save_bulk_json_chunk(folder, selected_files):
@@ -49,6 +162,9 @@ class ChunkHelper:
         """
         # Create MHTML filename (same as chunk but with .mhtml extension)
         html_filepath = os.path.splitext(chunk_filepath)[0] + '.html'
+
+        # Load exchange rates for salary conversion
+        exchange_rates_df = ExchangeRates.get_currencies()
 
         # Prepare vacancy data with scores
         vacancy_rows = []
@@ -121,7 +237,7 @@ class ChunkHelper:
         vacancy_rows.sort(key=lambda x: (-x['score_percentile'], -x['score']))
 
         # Generate HTML
-        html_content = ChunkHelper._generate_html_table(vacancy_rows)
+        html_content = ChunkHelper._generate_html_table(vacancy_rows, exchange_rates_df)
 
         # Save as MHTML
         with open(html_filepath, 'w', encoding='utf-8') as f:
@@ -129,7 +245,7 @@ class ChunkHelper:
         print(f"✅ Created MHTML summary: {html_filepath}")
 
     @staticmethod
-    def _generate_html_table(vacancy_rows):
+    def _generate_html_table(vacancy_rows, exchange_rates_df):
         """Generate HTML table with collapsible sections."""
         html_parts = ["""<!DOCTYPE html>
 <html>
@@ -286,27 +402,25 @@ function toggleSection(btn) {
             else:
                 display_title = title
 
-            # Format salary
+            # Format salary with conversions
             sal_min = json_data.get('SalaryMin', '')
             sal_max = json_data.get('SalaryMax', '')
             sal_curr = json_data.get('SalaryCurrency', '')
             sal_period = json_data.get('SalaryPeriod', '')
-            salary_parts = []
-            if sal_min or sal_max:
-                salary_parts.append(f"{sal_min}-{sal_max}")
-            if sal_curr:
-                salary_parts.append(sal_curr)
-            if sal_period:
-                salary_parts.append(f"per {sal_period}")
-            salary_str = " ".join(salary_parts) if salary_parts else ""
+
+            salary_html = ChunkHelper._format_salary_display(
+                sal_min, sal_max, sal_curr, sal_period, exchange_rates_df
+            )
 
             # Main row
+            score_str = f"{row['score']:.2f}".rstrip('0').rstrip('.')
+            score_percentile_str = f"{row['score_percentile']:.2f}".rstrip('0').rstrip('.')
             row_html = f"""            <tr>
                 <td>{display_title}</td>
-                <td>{row['score']}</td>
-                <td>{row['score_percentile']:.2f}</td>
+                <td>{score_str}</td>
+                <td>{score_percentile_str}</td>
                 <td>{row['vacancy_id']}</td>
-                <td>{salary_str}</td>
+                <td style="font-size: 11px; line-height: 1.4;">{salary_html}</td>
                 <td><button class="collapse-btn" onclick="toggleSection(this)">[+]</button></td>
             </tr>
 """
