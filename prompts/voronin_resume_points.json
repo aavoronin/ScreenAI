@@ -367,6 +367,11 @@
     "ML Flow",
     "MS Foundry"
   ],
+  "unwanted": [
+    "MLOps",
+    "AWS",
+    "GCP"
+  ],
   "missing": [
     "MLOps",
     "AWS",

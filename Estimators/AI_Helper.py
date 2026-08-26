@@ -135,14 +135,14 @@ class AI_Helper:
                     print(f"  ❌ Warmup failed after {max_retries} attempts. Exiting.")
                     sys.exit(1)
 
-    def _save_response_to_disk(self, txt_name: str, response: dict):
+    def _save_response_to_disk(self, txt_name: str, generated_text: str):
         if not self.saved_prompts_dir or not txt_name:
             return
         try:
             base_name = os.path.splitext(txt_name)[0]
-            response_path = os.path.join(self.saved_prompts_dir, base_name + '.json')
+            response_path = os.path.join(self.saved_prompts_dir, base_name + '_result.json')
             with open(response_path, 'w', encoding='utf-8') as f:
-                json.dump(response, f, indent=2, ensure_ascii=False)
+                f.write(generated_text)
         except Exception as e:
             print(f"  ⚠️ Could not save response to {response_path}: {e}")
 
@@ -151,7 +151,8 @@ class AI_Helper:
 
         if self.saved_prompts_dir and txt_name:
             try:
-                prompt_path = os.path.join(self.saved_prompts_dir, txt_name)
+                base_name = os.path.splitext(txt_name)[0]
+                prompt_path = os.path.join(self.saved_prompts_dir, base_name + '.txt')
                 with open(prompt_path, 'w', encoding='utf-8') as f:
                     f.write(full_prompt)
             except Exception as e:
@@ -162,10 +163,10 @@ class AI_Helper:
             print(f"  💾 Loading from cache: {os.path.basename(cache_path)}")
             try:
                 response = self._load_from_cache(cache_path)
-                self._save_response_to_disk(txt_name, response)
                 generated_text = response.get("generated_text", "")
                 if not isinstance(generated_text, str):
                     generated_text = str(generated_text)
+                self._save_response_to_disk(txt_name, generated_text)
                 parsed = self._parse_json_safely(generated_text)
                 return {
                     'success': True,
@@ -184,10 +185,10 @@ class AI_Helper:
             response = self.client.generate(model_id, full_prompt, model_limit_seconds=self.vacancy_timeout)
             duration = time.time() - total_start_time
             self._save_to_cache(cache_path, response)
-            self._save_response_to_disk(txt_name, response)
             generated_text = response.get("generated_text", "")
             if not isinstance(generated_text, str):
                 generated_text = str(generated_text)
+            self._save_response_to_disk(txt_name, generated_text)
             parsed = self._parse_json_safely(generated_text)
             return {
                 'success': True,

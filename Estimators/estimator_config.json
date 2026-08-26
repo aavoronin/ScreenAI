@@ -136,6 +136,7 @@
       "Data Vault": 6,
       "Dimensional Modeling": 6,
       "OLTP": 4,
+      "relational databases": 1,
       "Kimball Methodology": 4,
       "Snowflake Schema": 3,
       "SCD": 2,
@@ -148,7 +149,8 @@
       "Data Mart": 1,
       "Sharding": 1,
       "Data engineering": 1,
-      "data warehousing": 1
+      "data warehousing": 1,
+      "distributed systems": 1
     },
     "AI/ML/Data Science Concepts": {
       "Machine Learning": 73,
@@ -227,7 +229,7 @@
       "Alibaba Cloud": 1,
       "DigitalOcean": 1,
       "VMware": 1,
-      "Cloud computing": 1
+      "Cloud": 1
     },
     "Message Brokers & Streaming": {
       "Kafka": 53,
@@ -741,6 +743,7 @@
   },
   "synonymns": [
     ["SQL", "Structured Query Language"],
+    ["relational databases", "relational database", "relational db"],
     ["JavaScript", "JS", "ECMAScript"],
     ["TypeScript", "TS"],
     ["Bash", "Bourne-Again Shell", "Shell Script"],
@@ -753,8 +756,8 @@
     ["BigQuery", "Google BigQuery", "BQ"],
     ["Redshift", "Amazon Redshift", "AWS Redshift"],
     ["MongoDB", "Mongo"],
-    ["SQL Server", "Microsoft SQL Server", "MSSQL", "MS SQL"],
-    ["Oracle", "Oracle Database", "oracle"],
+    ["SQL Server", "Microsoft SQL Server", "Microsoft SQL", "Microsoft-SQL", "MSSQL", "MS SQL", "MS-SQL"],
+    ["Oracle", "Oracle Database"],
     ["T-SQL", "Transact-SQL", "Transact SQL"],
     ["DynamoDB", "Amazon DynamoDB", "Dynamo"],
     ["Cassandra", "Apache Cassandra"],
@@ -782,7 +785,7 @@
     ["Kafka", "Apache Kafka", "kafka"],
     ["SSIS", "SQL Server Integration Services"],
     ["Apache Beam", "Beam"],
-    ["Dataflow", "Google Cloud Dataflow", "GCP Dataflow"],
+    ["Google Cloud Dataflow", "GCP Dataflow"],
     ["DataStage", "IBM DataStage"],
     ["NiFi", "Apache NiFi"],
     ["ETL", "Extract, Transform, Load"],
@@ -1042,16 +1045,17 @@
     ["NumPy", "numpy"],
     ["Matplotlib", "matplotlib"],
     ["OpenAI", "openai"],
-    ["REST API", "RESTful API", "rest api"],
-    ["Anchor Modeling", "Anchor Model", "anchor modeling"],
-    ["Kimball Methodology", "Kimball", "kimball methodology"],
-    ["Star Schema", "Star", "star schema"],
-    ["Snowflake Schema", "snowflake schema"],
+    ["REST API", "RESTful API", "rest api", "rest apis"],
+    ["Anchor Modeling", "Anchor Model"],
+    ["Kimball Methodology", "Kimball"],
+    ["Star Schema", "Star"],
+    ["Snowflake Schema", "snowflake"],
     ["In-Memory Tables", "InMemory", "in-memory tables"],
     ["Columnstore", "Columnstore Indexes", "columnstore"],
     ["Table Partitioning", "Partitioning", "table partitioning"],
     ["Business Intelligence", "BI", "business intelligence"],
-    ["Analytics", "Data Analytics", "analytics"]
+    ["Analytics", "Data Analytics"],
+    ["cloud", "cloud data platforms", "cloud platforms"]
   ],
   "industries": [
     ["FinTech", "Financial Technology", "Finance", "Banking", "Digital Banking", "Payments", "Open Banking", "BNPL", "P2P Payments", "Credit Cards"],
@@ -1342,3 +1346,6 @@
     ["Nordics", "Nordic countries", "Scandinavia"]
   ]
 }
+
+
+
