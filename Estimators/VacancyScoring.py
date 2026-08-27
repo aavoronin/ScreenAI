@@ -12,7 +12,6 @@ class VacancyScoring:
         self.estimation_version = estimation_version
         self.load_config = load_config_func
         self.save_config = save_config_func
-
         self.TITLE_ADJUSTMENT = 0.6
         self.SCORE_TITLE_EXACT = int(20 * self.TITLE_ADJUSTMENT)
         self.SCORE_TITLE_80 = int(16 * self.TITLE_ADJUSTMENT)
@@ -29,6 +28,22 @@ class VacancyScoring:
             "nice-to-have": -1,
         }
         self.LEVEL_2_MIN_SCORE = 20
+
+    def _safe_str(self, val):
+        """Safely convert a value to a stripped string, handling lists by joining them."""
+        if isinstance(val, str):
+            return val.strip()
+        if isinstance(val, list):
+            return " ".join(str(v) for v in val).strip()
+        return ""
+
+    def _safe_list(self, val):
+        """Safely convert a value to a list of stripped strings."""
+        if isinstance(val, list):
+            return [str(v).strip() for v in val if isinstance(v, (str, int, float))]
+        if isinstance(val, str):
+            return [val.strip()]
+        return []
 
     def _levenshtein_ratio(self, s1, s2):
         if not s1 and not s2:
@@ -97,11 +112,11 @@ class VacancyScoring:
         synonym_map = self._build_synonym_map()
 
         # --- Title matching ---
-        vacancy_title = (vacancy_json.get('Title') or '').strip()
-        resume_titles = self.resume_json.get('Title', []) or []
+        vacancy_title = self._safe_str(vacancy_json.get('Title'))
+        resume_titles = self._safe_list(self.resume_json.get('Title', []))
         title_matched = False
         for rt in resume_titles:
-            if not isinstance(rt, str):
+            if not rt:
                 continue
             ratio = self._levenshtein_ratio(vacancy_title, rt)
             if ratio >= 1.0:
@@ -159,10 +174,10 @@ class VacancyScoring:
             })
 
         # --- CompanyNoIndustry penalty ---
-        vacancy_industry = (vacancy_json.get('CompanyIndustry') or '').strip()
-        no_industries = self.resume_json.get('CompanyNoIndustry', []) or []
+        vacancy_industry = self._safe_str(vacancy_json.get('CompanyIndustry'))
+        no_industries = self._safe_list(self.resume_json.get('CompanyNoIndustry', []))
         for ni in no_industries:
-            if not isinstance(ni, str):
+            if not ni:
                 continue
             ratio = self._levenshtein_ratio(vacancy_industry, ni)
             if ratio >= 0.9:
@@ -180,46 +195,39 @@ class VacancyScoring:
                 break
 
         # --- Security Clearance penalty ---
-        vacancy_clearance_raw = vacancy_json.get('SecurityClearance')
-        if vacancy_clearance_raw is not None:
-            vacancy_clearance = str(vacancy_clearance_raw).strip()
-            if vacancy_clearance and vacancy_clearance.lower() != 'none':
-                points = -100
-                score += points
-                protocol_entries.append({
-                    "left": vacancy_clearance,
-                    "left_field": "SecurityClearance",
-                    "score": points,
-                    "score_percentile": 0.0,
-                    "right": "none",
-                    "right_field": "SecurityClearance",
-                    "msg": f"{points} points vacancy requires security clearance: '{vacancy_clearance}'"
-                })
+        vacancy_clearance = self._safe_str(vacancy_json.get('SecurityClearance'))
+        if vacancy_clearance and vacancy_clearance.lower() != 'none':
+            points = -100
+            score += points
+            protocol_entries.append({
+                "left": vacancy_clearance,
+                "left_field": "SecurityClearance",
+                "score": points,
+                "score_percentile": 0.0,
+                "right": "none",
+                "right_field": "SecurityClearance",
+                "msg": f"{points} points vacancy requires security clearance: '{vacancy_clearance}'"
+            })
 
         # --- RequiredLanguages penalty ---
-        vacancy_languages = vacancy_json.get('RequiredLanguages', []) or []
-        resume_languages = [
-            str(l).strip().lower()
-            for l in (self.resume_json.get('RequiredLanguages', []) or [])
-            if isinstance(l, str)
-        ]
+        vacancy_languages = self._safe_list(vacancy_json.get('RequiredLanguages', []))
+        resume_languages = [l.lower() for l in self._safe_list(self.resume_json.get('RequiredLanguages', []))]
 
         if vacancy_languages:
             for lang in vacancy_languages:
-                if not isinstance(lang, str):
+                if not lang:
                     continue
-                lang_str = str(lang).strip()
-                if lang_str.lower() not in resume_languages:
+                if lang.lower() not in resume_languages:
                     points = -20
                     score += points
                     protocol_entries.append({
-                        "left": lang_str,
+                        "left": lang,
                         "left_field": "RequiredLanguages",
                         "score": points,
                         "score_percentile": 0.0,
                         "right": "",
                         "right_field": "RequiredLanguages",
-                        "msg": f"{points} points vacancy requires language '{lang_str}' not in resume"
+                        "msg": f"{points} points vacancy requires language '{lang}' not in resume"
                     })
 
         # --- Skills matching (expert / required / nice-to-have) ---
@@ -227,15 +235,16 @@ class VacancyScoring:
         vacancy_by_level = {}
         resume_by_level = {}
         for level in levels:
+            raw_v = vacancy_json.get(level, [])
+            v_list = raw_v if isinstance(raw_v, list) else ([raw_v] if raw_v else [])
             vacancy_by_level[level] = set(
-                s.lower() for s in self._normalize_by_synonyms(
-                    vacancy_json.get(level, []) or [], synonym_map
-                )
+                s.lower() for s in self._normalize_by_synonyms(v_list, synonym_map) if s
             )
+
+            raw_r = self.resume_json.get(level, [])
+            r_list = raw_r if isinstance(raw_r, list) else ([raw_r] if raw_r else [])
             resume_by_level[level] = set(
-                s.lower() for s in self._normalize_by_synonyms(
-                    self.resume_json.get(level, []) or [], synonym_map
-                )
+                s.lower() for s in self._normalize_by_synonyms(r_list, synonym_map) if s
             )
 
         all_vacancy_skills = {}
@@ -267,7 +276,6 @@ class VacancyScoring:
                 # No exact match. Try to find known skills as a word-bound substring.
                 max_scores_by_canonical = {}
                 best_matches = {}
-
                 for r_level_check in levels:
                     for r_skill in resume_by_level[r_level_check]:
                         canonical = synonym_map.get(r_skill, r_skill)
@@ -277,7 +285,6 @@ class VacancyScoring:
                                 points = self.PROFICIENCY_SCORE_MATRIX[v_level][r_level_check]
                                 ratio = self._levenshtein_ratio(v_skill, r_skill)
                                 score_val = points * ratio
-
                                 if canonical not in max_scores_by_canonical or score_val > max_scores_by_canonical[
                                     canonical]:
                                     max_scores_by_canonical[canonical] = score_val
@@ -286,11 +293,9 @@ class VacancyScoring:
                 if max_scores_by_canonical:
                     total_sub_score = sum(max_scores_by_canonical.values())
                     score += total_sub_score
-
                     match_details = []
                     for canonical, (r_skill, r_level_check, ratio) in best_matches.items():
                         match_details.append(f"'{r_skill}' {r_level_check} (ratio: {ratio:.2f})")
-
                     protocol_entries.append({
                         "left": v_skill,
                         "left_field": v_level,
