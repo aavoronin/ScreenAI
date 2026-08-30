@@ -44,7 +44,7 @@ if __name__ == "__main__":
 
     # Generate period summary for the last 14 days
     period_end = datetime.now()
-    period_start = period_end - timedelta(days=14 * 8)
+    period_start = period_end - timedelta(days=14 * 2)
     summary_output_path = config.get_path('summary_output_path')
 
     PeriodSummary.generate_period_summary(

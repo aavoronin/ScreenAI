@@ -128,6 +128,15 @@ class ChunkHelper:
         return "<br>".join(lines)
 
     @staticmethod
+    def _extract_country_str(country_val):
+        """Safely extract country as a string from list or string value."""
+        if not country_val:
+            return ""
+        if isinstance(country_val, list):
+            return ", ".join(str(c).strip() for c in country_val if c)
+        return str(country_val).strip()
+
+    @staticmethod
     def save_bulk_json_chunk(folder, selected_files):
         """
         Save a bulk JSON chunk containing the parsed vacancy data.
@@ -235,7 +244,21 @@ class ChunkHelper:
 
     @staticmethod
     def _generate_html_table(vacancy_rows, exchange_rates_df):
-        """Generate HTML table with collapsible sections."""
+        """Generate HTML table with collapsible sections and country filter."""
+        # Collect distinct countries for filter
+        distinct_countries = set()
+        for row in vacancy_rows:
+            json_data = row.get('estimation_data', {}).get('json', {})
+            country_val = json_data.get('CandidateCountry') or json_data.get('EmployerCountry')
+            country_str = ChunkHelper._extract_country_str(country_val)
+            if country_str:
+                # Split by comma to handle multiple countries
+                for c in country_str.split(','):
+                    c = c.strip()
+                    if c:
+                        distinct_countries.add(c)
+        sorted_countries = sorted(distinct_countries)
+
         html_parts = ["""<!DOCTYPE html>
 <html>
 <head>
@@ -338,6 +361,71 @@ tr:hover {
     max-width: 100%;
     box-sizing: border-box;
 }
+.country-filter-container {
+    margin: 10px 0 20px 0;
+    padding: 10px;
+    background-color: white;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    position: relative;
+}
+.country-filter-btn {
+    background-color: #4CAF50;
+    color: white;
+    border: none;
+    padding: 8px 16px;
+    cursor: pointer;
+    border-radius: 4px;
+    font-size: 14px;
+    min-width: 200px;
+    text-align: left;
+}
+.country-filter-btn:hover {
+    background-color: #45a049;
+}
+.country-dropdown {
+    display: none;
+    position: absolute;
+    top: 100%;
+    left: 0;
+    background-color: white;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    max-height: 300px;
+    overflow-y: auto;
+    z-index: 1000;
+    min-width: 250px;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+}
+.country-dropdown label {
+    display: block;
+    padding: 6px 12px;
+    cursor: pointer;
+}
+.country-dropdown label:hover {
+    background-color: #f1f1f1;
+}
+.country-dropdown input[type="checkbox"] {
+    margin-right: 8px;
+}
+.filter-actions {
+    padding: 6px 12px;
+    border-top: 1px solid #ddd;
+    background-color: #f9f9f9;
+}
+.filter-actions button {
+    background-color: #4CAF50;
+    color: white;
+    border: none;
+    padding: 4px 8px;
+    cursor: pointer;
+    border-radius: 3px;
+    font-size: 12px;
+    margin-right: 4px;
+}
+.filter-actions button:hover {
+    background-color: #45a049;
+}
 </style>
 <script>
 function toggleSection(btn) {
@@ -350,40 +438,144 @@ function toggleSection(btn) {
         btn.textContent = '[-]';
     }
 }
+
+function toggleCountryDropdown() {
+    var dropdown = document.getElementById('countryDropdown');
+    dropdown.style.display = dropdown.style.display === 'block' ? 'none' : 'block';
+}
+
+function selectAllCountries() {
+    var checkboxes = document.querySelectorAll('#countryDropdown input[type="checkbox"]');
+    checkboxes.forEach(function(cb) {
+        cb.checked = true;
+    });
+    filterByCountry();
+}
+
+function deselectAllCountries() {
+    var checkboxes = document.querySelectorAll('#countryDropdown input[type="checkbox"]');
+    checkboxes.forEach(function(cb) {
+        cb.checked = false;
+    });
+    filterByCountry();
+}
+
+function filterByCountry() {
+    var checkboxes = document.querySelectorAll('#countryDropdown input[type="checkbox"][data-country]');
+    var selected = [];
+    checkboxes.forEach(function(cb) {
+        if (cb.checked) {
+            selected.push(cb.getAttribute('data-country'));
+        }
+    });
+
+    // Update label
+    var label = document.getElementById('countryFilterLabel');
+    if (selected.length === 0 || selected.length === checkboxes.length) {
+        label.textContent = 'All Countries (' + checkboxes.length + ')';
+    } else {
+        label.textContent = selected.join(', ');
+    }
+
+    // Filter rows
+    var rows = document.querySelectorAll('tr.main-row');
+    rows.forEach(function(row) {
+        var rowCountries = row.getAttribute('data-countries');
+        var nextRow = row.nextElementSibling;
+        var show = false;
+
+        if (selected.length === 0 || selected.length === checkboxes.length) {
+            show = true;
+        } else {
+            var rowCountryList = rowCountries ? rowCountries.split('|') : [];
+            for (var i = 0; i < selected.length; i++) {
+                if (rowCountryList.indexOf(selected[i]) !== -1) {
+                    show = true;
+                    break;
+                }
+            }
+        }
+
+        if (show) {
+            row.style.display = '';
+        } else {
+            row.style.display = 'none';
+            if (nextRow && nextRow.classList.contains('collapsible-section')) {
+                nextRow.style.display = 'none';
+                nextRow.classList.remove('show');
+            }
+        }
+    });
+}
+
+// Close dropdown when clicking outside
+document.addEventListener('click', function(event) {
+    var container = document.querySelector('.country-filter-container');
+    if (container && !container.contains(event.target)) {
+        var dropdown = document.getElementById('countryDropdown');
+        if (dropdown) {
+            dropdown.style.display = 'none';
+        }
+    }
+});
 </script>
 </head>
 <body>
 <h1>Vacancy Estimation Summary</h1>
-<table>
+"""]
+
+        # Country filter dropdown
+        html_parts.append("""<div class="country-filter-container">
+    <button class="country-filter-btn" onclick="toggleCountryDropdown()">
+        <span id="countryFilterLabel">All Countries (""" + str(len(sorted_countries)) + """)</span> ▼
+    </button>
+    <div id="countryDropdown" class="country-dropdown">
+""")
+        for country in sorted_countries:
+            escaped_country = country.replace('"', '&quot;').replace("'", '&#39;')
+            html_parts.append(
+                f'        <label><input type="checkbox" data-country="{escaped_country}" checked onchange="filterByCountry()"> {country}</label>\n')
+        html_parts.append("""        <div class="filter-actions">
+            <button onclick="selectAllCountries()">Select All</button>
+            <button onclick="deselectAllCountries()">Deselect All</button>
+        </div>
+    </div>
+</div>
+""")
+
+        html_parts.append("""<table>
 <thead>
 <tr>
-    <th>VacancyTitle</th>
-    <th>Score</th>
-    <th>Score Percentile</th>
-    <th>VacancyId</th>
-    <th>Salary</th>
-    <th></th>
+    <th style="width: 13%;">Country</th>
+    <th style="width: 30%;">VacancyTitle</th>
+    <th style="width: 13%;">Score</th>
+    <th style="width: 13%;">Score Percentile</th>
+    <th style="width: 13%;">VacancyId</th>
+    <th style="width: 13%;">Salary</th>
+    <th style="width: 5%;"></th>
 </tr>
 </thead>
 <tbody>
-"""]
+""")
         row_html_parts = []
         for row in vacancy_rows:
-            # Format title with EmploymentType and Country
-            title = row.get('title', '')
+            # Extract country separately
             json_data = row.get('estimation_data', {}).get('json', {})
+            country_val = json_data.get('CandidateCountry') or json_data.get('EmployerCountry')
+            country_str = ChunkHelper._extract_country_str(country_val)
+
+            # Build data-countries attribute for filtering (pipe-separated)
+            data_countries = ""
+            if country_str:
+                countries_list = [c.strip() for c in country_str.split(',') if c.strip()]
+                data_countries = '|'.join(countries_list)
+
+            # Title without country
+            title = row.get('title', '')
             emp_type = json_data.get('EmploymentType')
-            country = json_data.get('CandidateCountry') or json_data.get('EmployerCountry')
             extras = []
             if emp_type:
                 extras.append(str(emp_type).strip())
-            if country:
-                if isinstance(country, list):
-                    country_str = ", ".join(str(c).strip() for c in country if c)
-                else:
-                    country_str = str(country).strip()
-                if country_str:
-                    extras.append(country_str)
             if extras:
                 display_title = f"{title} ({', '.join(extras)})"
             else:
@@ -401,7 +593,9 @@ function toggleSection(btn) {
             # Main row
             score_str = f"{row['score']:.2f}".rstrip('0').rstrip('.')
             score_percentile_str = f"{row['score_percentile']:.2f}".rstrip('0').rstrip('.')
-            row_html = f"""            <tr>
+            escaped_data_countries = data_countries.replace('"', '&quot;')
+            row_html = f"""            <tr class="main-row" data-countries="{escaped_data_countries}">
+                <td>{country_str}</td>
                 <td>{display_title}</td>
                 <td>{score_str}</td>
                 <td>{score_percentile_str}</td>
@@ -412,7 +606,7 @@ function toggleSection(btn) {
 """
             # Collapsible section
             row_html += """            <tr class="collapsible-section">
-                <td colspan="6">
+                <td colspan="7">
 """
             # Nested table with skills comparison
             estimation_data = row.get('estimation_data', {})
@@ -469,11 +663,11 @@ function toggleSection(btn) {
                     <div>
 """
             if os.path.exists(row['json_path']):
-                row_html += f'                        <a href="file:///{row["json_path"].replace("\\\\", "/")}" class="file-link">📄 JSON</a>\n'
+                row_html += f'                        <a href="file:///{row["json_path"].replace(chr(92), "/")}" class="file-link">📄 JSON</a>\n'
             if os.path.exists(row['txt_path']):
-                row_html += f'                        <a href="file:///{row["txt_path"].replace("\\\\", "/")}" class="file-link">📄 TXT</a>\n'
+                row_html += f'                        <a href="file:///{row["txt_path"].replace(chr(92), "/")}" class="file-link">📄 TXT</a>\n'
             if os.path.exists(row['mhtml_path']):
-                row_html += f'                        <a href="file:///{row["mhtml_path"].replace("\\\\", "/")}" class="file-link">📄 MHTML</a>\n'
+                row_html += f'                        <a href="file:///{row["mhtml_path"].replace(chr(92), "/")}" class="file-link">📄 MHTML</a>\n'
             if row.get('vacancy_url'):
                 v_url = row['vacancy_url']
                 row_html += f'                        <a href="{v_url}" class="file-link" target="_blank">🔗 Vacancy URL</a>\n'
