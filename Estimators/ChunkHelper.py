@@ -15,6 +15,11 @@ class ChunkHelper:
     Helper class for creating and saving bulk JSON chunks of vacancy data.
     """
     # Constants for salary period conversion to annual
+    # Conversion factors:
+    # - Hour to year: 40 hours/week * 52 weeks/year = 2080 hours/year
+    # - Day to year: 5 days/week * 52 weeks/year = 260 days/year
+    # - Week to year: 52 weeks/year
+    # - Month to year: 12 months/year
     HOURS_PER_WEEK = 40
     WEEKS_PER_YEAR = 52
     DAYS_PER_WEEK = 5
@@ -51,40 +56,43 @@ class ChunkHelper:
             return amount
         if rates_df is None or pd is None:
             return None
-
         from_row = rates_df[rates_df['Currency'] == from_curr.upper()]
         to_row = rates_df[rates_df['Currency'] == to_curr.upper()]
-
         if from_row.empty or to_row.empty:
             return None
-
         from_rate_usd = from_row['Rate_USD'].values[0]
         to_rate_usd = to_row['Rate_USD'].values[0]
-
         if pd.isna(from_rate_usd) or pd.isna(to_rate_usd) or from_rate_usd == 0:
             return None
-
         amount_usd = amount / from_rate_usd
         amount_target = amount_usd * to_rate_usd
         return amount_target
 
     @staticmethod
     def _format_salary_display(sal_min, sal_max, sal_curr, sal_period, exchange_rates_df):
+        """
+        Format salary display.
+        Line 1: Original values and period (e.g., per month, per hour).
+        Line 2: Converted to per year in USD.
+        Line 3: Converted to per year in EUR.
+
+        Conversion factors to year (defined in class constants):
+        - Hour: 40 hours/week * 52 weeks/year = 2080
+        - Day: 5 days/week * 52 weeks/year = 260
+        - Week: 52
+        - Month: 12
+        """
         if not sal_curr:
             return ""
-
         min_val = ChunkHelper._parse_salary_value(sal_min)
         max_val = ChunkHelper._parse_salary_value(sal_max)
-
         if min_val is None and max_val is None:
             return ""
 
-        ann_min = ChunkHelper._convert_to_annual(min_val, sal_period)
-        ann_max = ChunkHelper._convert_to_annual(max_val, sal_period)
-
         curr = sal_curr.upper().strip()
+        period = str(sal_period).strip().lower() if sal_period else ""
 
-        def format_range(mn, mx, currency):
+        def format_range(mn, mx, currency, period_str):
             parts = []
             if mn is not None and mx is not None:
                 parts.append(f"{mn:,.0f}-{mx:,.0f}")
@@ -93,32 +101,29 @@ class ChunkHelper:
             elif mx is not None:
                 parts.append(f"up to {mx:,.0f}")
             parts.append(currency)
-            parts.append("per year")
+            if period_str:
+                parts.append(f"per {period_str}")
             return " ".join(parts)
 
-        line1 = format_range(ann_min, ann_max, curr)
+        # Line 1: Original values and period
+        line1 = format_range(min_val, max_val, curr, period)
         lines = [line1]
 
-        if curr == 'USD':
-            eur_min = ChunkHelper._convert_currency(ann_min, curr, 'EUR', exchange_rates_df)
-            eur_max = ChunkHelper._convert_currency(ann_max, curr, 'EUR', exchange_rates_df)
-            if eur_min is not None or eur_max is not None:
-                lines.append(format_range(eur_min, eur_max, 'EUR'))
-        elif curr == 'EUR':
-            usd_min = ChunkHelper._convert_currency(ann_min, curr, 'USD', exchange_rates_df)
-            usd_max = ChunkHelper._convert_currency(ann_max, curr, 'USD', exchange_rates_df)
-            if usd_min is not None or usd_max is not None:
-                lines.append(format_range(usd_min, usd_max, 'USD'))
-        else:
-            usd_min = ChunkHelper._convert_currency(ann_min, curr, 'USD', exchange_rates_df)
-            usd_max = ChunkHelper._convert_currency(ann_max, curr, 'USD', exchange_rates_df)
-            if usd_min is not None or usd_max is not None:
-                lines.append(format_range(usd_min, usd_max, 'USD'))
+        # Convert to annual in original currency for subsequent conversions
+        ann_min = ChunkHelper._convert_to_annual(min_val, period)
+        ann_max = ChunkHelper._convert_to_annual(max_val, period)
 
-            eur_min = ChunkHelper._convert_currency(ann_min, curr, 'EUR', exchange_rates_df)
-            eur_max = ChunkHelper._convert_currency(ann_max, curr, 'EUR', exchange_rates_df)
-            if eur_min is not None or eur_max is not None:
-                lines.append(format_range(eur_min, eur_max, 'EUR'))
+        # Line 2: Convert to per year in USD
+        usd_min = ChunkHelper._convert_currency(ann_min, curr, 'USD', exchange_rates_df)
+        usd_max = ChunkHelper._convert_currency(ann_max, curr, 'USD', exchange_rates_df)
+        if usd_min is not None or usd_max is not None:
+            lines.append(format_range(usd_min, usd_max, 'USD', 'year'))
+
+        # Line 3: Convert to per year in EUR
+        eur_min = ChunkHelper._convert_currency(ann_min, curr, 'EUR', exchange_rates_df)
+        eur_max = ChunkHelper._convert_currency(ann_max, curr, 'EUR', exchange_rates_df)
+        if eur_min is not None or eur_max is not None:
+            lines.append(format_range(eur_min, eur_max, 'EUR', 'year'))
 
         return "<br>".join(lines)
 
@@ -133,7 +138,6 @@ class ChunkHelper:
         timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
         chunk_filename = f"linkedin_bulk_jsons_{len(selected_files)}_{timestamp}.json"
         chunk_filepath = os.path.join(chunks_dir, chunk_filename)
-
         chunk_data = {}
         for v in selected_files:
             vid = v['vacancy_id']
@@ -146,11 +150,9 @@ class ChunkHelper:
                 chunk_data[vid] = {
                     "error": f"json for vacancy {os.path.basename(json_path)} was faulty: {str(e)}"
                 }
-
         with open(chunk_filepath, 'w', encoding='utf-8') as f:
             json.dump(chunk_data, f, indent=2, ensure_ascii=False)
         print(f"✅ Saved bulk JSON chunk to: {chunk_filepath}")
-
         # Create MHTML summary file
         ChunkHelper._create_html_summary(chunk_filepath, chunk_data, selected_files, chunks_dir)
         return chunk_filepath
@@ -162,21 +164,17 @@ class ChunkHelper:
         """
         # Create MHTML filename (same as chunk but with .mhtml extension)
         html_filepath = os.path.splitext(chunk_filepath)[0] + '.html'
-
         # Load exchange rates for salary conversion
         exchange_rates_df = ExchangeRates.get_currencies()
-
         # Prepare vacancy data with scores
         vacancy_rows = []
         for v in selected_files:
             vid = v['vacancy_id']
             if vid not in chunk_data:
                 continue
-
             vacancy_data = chunk_data[vid]
             est2 = vacancy_data.get('estimation2', {})
             est1 = vacancy_data.get('estimation1', {})
-
             # Level 2 takes priority, but if model_id is null, it's considered missing.
             if est2.get('model_id') is not None:
                 score = est2.get('score', 0)
@@ -190,26 +188,21 @@ class ChunkHelper:
                 score = 0
                 score_percentile = 0.0
                 estimation_data = {}
-
             # Extract URLs, prioritizing estimation2 over estimation1
             est2_json = est2.get('json') or {}
             est1_json = est1.get('json') or {}
-
             vacancy_url = est2_json.get('VacancyURL') or est1_json.get('VacancyURL')
             apply_url = est2_json.get('ApplyURL') or est1_json.get('ApplyURL')
-
             # Get vacancy title
             vacancy_title = ""
             if est1.get('json'):
                 vacancy_title = est1['json'].get('Title', '')
             elif est2.get('json'):
                 vacancy_title = est2['json'].get('Title', '')
-
             # Get file paths
             base_path = os.path.splitext(v['json_path'])[0]
             txt_path = base_path + '.txt'
             mhtml_path = base_path + 'mhtml'
-
             # Get vacancy text
             vacancy_text = ""
             if os.path.exists(txt_path):
@@ -218,7 +211,6 @@ class ChunkHelper:
                         vacancy_text = f.read()
                 except:
                     vacancy_text = "Could not load text"
-
             vacancy_rows.append({
                 'vacancy_id': vid,
                 'score': score,
@@ -232,13 +224,10 @@ class ChunkHelper:
                 'vacancy_url': vacancy_url,
                 'apply_url': apply_url
             })
-
         # Sort by score_percentile desc, then by score desc
         vacancy_rows.sort(key=lambda x: (-x['score_percentile'], -x['score']))
-
         # Generate HTML
         html_content = ChunkHelper._generate_html_table(vacancy_rows, exchange_rates_df)
-
         # Save as MHTML
         with open(html_filepath, 'w', encoding='utf-8') as f:
             f.write(html_content)
@@ -378,7 +367,6 @@ function toggleSection(btn) {
 </thead>
 <tbody>
 """]
-
         row_html_parts = []
         for row in vacancy_rows:
             # Format title with EmploymentType and Country
@@ -396,7 +384,6 @@ function toggleSection(btn) {
                     country_str = str(country).strip()
                 if country_str:
                     extras.append(country_str)
-
             if extras:
                 display_title = f"{title} ({', '.join(extras)})"
             else:
@@ -407,7 +394,6 @@ function toggleSection(btn) {
             sal_max = json_data.get('SalaryMax', '')
             sal_curr = json_data.get('SalaryCurrency', '')
             sal_period = json_data.get('SalaryPeriod', '')
-
             salary_html = ChunkHelper._format_salary_display(
                 sal_min, sal_max, sal_curr, sal_period, exchange_rates_df
             )
@@ -488,14 +474,12 @@ function toggleSection(btn) {
                 row_html += f'                        <a href="file:///{row["txt_path"].replace("\\\\", "/")}" class="file-link">📄 TXT</a>\n'
             if os.path.exists(row['mhtml_path']):
                 row_html += f'                        <a href="file:///{row["mhtml_path"].replace("\\\\", "/")}" class="file-link">📄 MHTML</a>\n'
-
             if row.get('vacancy_url'):
                 v_url = row['vacancy_url']
                 row_html += f'                        <a href="{v_url}" class="file-link" target="_blank">🔗 Vacancy URL</a>\n'
             if row.get('apply_url'):
                 a_url = row['apply_url']
                 row_html += f'                        <a href="{a_url}" class="file-link" target="_blank">🔗 Apply URL</a>\n'
-
             row_html += """                    </div>
 """
             # Vacancy text (strip URLs)
@@ -506,7 +490,6 @@ function toggleSection(btn) {
             </tr>
 """
             row_html_parts.append(row_html)
-
         html_parts.append("".join(row_html_parts))
         html_parts.append("""        </tbody>
 </table>

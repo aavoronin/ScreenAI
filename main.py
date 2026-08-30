@@ -44,25 +44,22 @@ if __name__ == "__main__":
 
     # Generate period summary for the last 14 days
     period_end = datetime.now()
-    period_start = period_end - timedelta(days=14)
+    period_start = period_end - timedelta(days=14 * 8)
     summary_output_path = config.get_path('summary_output_path')
 
-    if summary_output_path:
-        PeriodSummary.generate_period_summary(
-            navigators=[nv1, nv2],
-            output_folder=summary_output_path,
-            period_start=period_start,
-            period_end=period_end
-        )
-    else:
-        print("⚠️ summary_output_path not found in config.")
+    PeriodSummary.generate_period_summary(
+        navigators=[nv1, nv2],
+        output_folder=summary_output_path,
+        period_start=period_start,
+        period_end=period_end
+    )
 
     if False:
         for nv in [nv1, nv2]:
             nv.analyze_collected()
     while True:
         for nv in [nv1, nv1, nv1, nv2]:
+            nv.run_on_urls(1)
+        for nv in [nv1, nv1, nv2]:
             for _ in range(2):
                 nv.AI_estimate_collected()
-        for nv in [nv1, nv1, nv1, nv2]:
-            nv.run_on_urls(1)
