@@ -137,6 +137,36 @@ class ChunkHelper:
         return str(country_val).strip()
 
     @staticmethod
+    def _load_estimator_config():
+        estimator_config_path = os.path.join(
+            os.path.dirname(os.path.abspath(__file__)),
+            'estimator_config.json'
+        )
+        if not os.path.exists(estimator_config_path):
+            return {}
+        try:
+            with open(estimator_config_path, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        except Exception:
+            return {}
+
+    @staticmethod
+    def _build_country_synonym_map():
+        config = ChunkHelper._load_estimator_config()
+        countries_section = config.get('countries', [])
+        synonym_map = {}
+        valid_canonical_names = set()
+        if isinstance(countries_section, list):
+            for group in countries_section:
+                if isinstance(group, list) and len(group) > 0:
+                    canonical = str(group[0]).strip()
+                    valid_canonical_names.add(canonical.lower())
+                    for syn in group:
+                        if isinstance(syn, str):
+                            synonym_map[syn.lower()] = canonical
+        return synonym_map, valid_canonical_names
+
+    @staticmethod
     def save_bulk_json_chunk(folder, selected_files):
         """
         Save a bulk JSON chunk containing the parsed vacancy data.
@@ -245,19 +275,24 @@ class ChunkHelper:
     @staticmethod
     def _generate_html_table(vacancy_rows, exchange_rates_df):
         """Generate HTML table with collapsible sections and country filter."""
+        synonym_map, valid_canonical_names = ChunkHelper._build_country_synonym_map()
+
         # Collect distinct countries for filter
         distinct_countries = set()
         for row in vacancy_rows:
             json_data = row.get('estimation_data', {}).get('json', {})
             country_val = json_data.get('CandidateCountry') or json_data.get('EmployerCountry')
-            country_str = ChunkHelper._extract_country_str(country_val)
-            if country_str:
-                # Split by comma to handle multiple countries
-                for c in country_str.split(','):
+            raw_str = ChunkHelper._extract_country_str(country_val)
+            if raw_str:
+                for c in raw_str.split(','):
                     c = c.strip()
-                    if c:
-                        distinct_countries.add(c)
-        sorted_countries = sorted(distinct_countries)
+                    if not c:
+                        continue
+                    canonical = synonym_map.get(c.lower(), c)
+                    if canonical.lower() in valid_canonical_names:
+                        distinct_countries.add(canonical)
+
+        sorted_countries = sorted(list(distinct_countries))
 
         html_parts = ["""<!DOCTYPE html>
 <html>
@@ -534,10 +569,11 @@ document.addEventListener('click', function(event) {
         for country in sorted_countries:
             escaped_country = country.replace('"', '&quot;').replace("'", '&#39;')
             html_parts.append(
-                f'        <label><input type="checkbox" data-country="{escaped_country}" checked onchange="filterByCountry()"> {country}</label>\n')
+                f'        <label><input type="checkbox" data-country="{escaped_country}" checked onchange="filterByCountry()"> {country}</label>\n'
+            )
         html_parts.append("""        <div class="filter-actions">
-            <button onclick="selectAllCountries()">Select All</button>
-            <button onclick="deselectAllCountries()">Deselect All</button>
+            <button onclick="selectAllCountries()">Check All</button>
+            <button onclick="deselectAllCountries()">Uncheck All</button>
         </div>
     </div>
 </div>
@@ -562,13 +598,23 @@ document.addEventListener('click', function(event) {
             # Extract country separately
             json_data = row.get('estimation_data', {}).get('json', {})
             country_val = json_data.get('CandidateCountry') or json_data.get('EmployerCountry')
-            country_str = ChunkHelper._extract_country_str(country_val)
+            raw_str = ChunkHelper._extract_country_str(country_val)
+
+            mapped_countries = []
+            if raw_str:
+                for c in raw_str.split(','):
+                    c = c.strip()
+                    if not c:
+                        continue
+                    canonical = synonym_map.get(c.lower(), c)
+                    if canonical.lower() in valid_canonical_names:
+                        if canonical not in mapped_countries:
+                            mapped_countries.append(canonical)
+
+            country_str = ", ".join(mapped_countries)
 
             # Build data-countries attribute for filtering (pipe-separated)
-            data_countries = ""
-            if country_str:
-                countries_list = [c.strip() for c in country_str.split(',') if c.strip()]
-                data_countries = '|'.join(countries_list)
+            data_countries = '|'.join(mapped_countries)
 
             # Title without country
             title = row.get('title', '')
