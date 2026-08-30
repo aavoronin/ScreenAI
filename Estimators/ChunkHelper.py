@@ -533,6 +533,9 @@ function filterByCountry() {
 
         if (show) {
             row.style.display = '';
+            if (nextRow && nextRow.classList.contains('collapsible-section')) {
+                nextRow.style.display = '';
+            }
         } else {
             row.style.display = 'none';
             if (nextRow && nextRow.classList.contains('collapsible-section')) {
