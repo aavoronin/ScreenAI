@@ -3,7 +3,6 @@ import re
 import json
 from datetime import datetime
 from Estimators.ExchangeRates import ExchangeRates
-
 try:
     import pandas as pd
 except ImportError:
@@ -200,6 +199,7 @@ class ChunkHelper:
     def _create_html_summary(chunk_filepath, chunk_data, selected_files, chunks_dir):
         """
         Create an MHTML file with a summary table of vacancies.
+        Also creates per-country summary files.
         """
         # Create MHTML filename (same as chunk but with .mhtml extension)
         html_filepath = os.path.splitext(chunk_filepath)[0] + '.html'
@@ -232,19 +232,16 @@ class ChunkHelper:
             est1_json = est1.get('json') or {}
             vacancy_url = est2_json.get('VacancyURL') or est1_json.get('VacancyURL')
             apply_url = est2_json.get('ApplyURL') or est1_json.get('ApplyURL')
-
             if not vacancy_url:
                 if "LinkedIn" in v['json_path']:
                     vacancy_url = f"https://www.linkedin.com/jobs/view/{vid}/"
                 elif "Hirify" in v['json_path']:
                     vacancy_url = f"https://hirify.me/jobs/{vid}"
-
             if not apply_url:
                 if "LinkedIn" in v['json_path']:
                     apply_url = f"https://www.linkedin.com/jobs/view/{vid}/"
                 elif "Hirify" in v['json_path']:
                     apply_url = f"https://hirify.me/jobs/{vid}"
-
             # Get vacancy title
             vacancy_title = ""
             if est1.get('json'):
@@ -278,12 +275,44 @@ class ChunkHelper:
             })
         # Sort by score_percentile desc, then by score desc
         vacancy_rows.sort(key=lambda x: (-x['score_percentile'], -x['score']))
-        # Generate HTML
+        # Generate main HTML
         html_content = ChunkHelper._generate_html_table(vacancy_rows, exchange_rates_df)
-        # Save as MHTML
+        # Save main file
         with open(html_filepath, 'w', encoding='utf-8') as f:
             f.write(html_content)
         print(f"✅ Created MHTML summary: {html_filepath}")
+
+        # Generate per-country summary files
+        synonym_map, valid_canonical_names = ChunkHelper._build_country_synonym_map()
+        country_to_rows = {}
+        for row in vacancy_rows:
+            json_data = row.get('estimation_data', {}).get('json', {})
+            country_val = json_data.get('CandidateCountry') or json_data.get('EmployerCountry')
+            raw_str = ChunkHelper._extract_country_str(country_val)
+            if raw_str:
+                for c in raw_str.split(','):
+                    c = c.strip()
+                    if not c:
+                        continue
+                    canonical = synonym_map.get(c.lower(), c)
+                    if canonical.lower() in valid_canonical_names:
+                        if canonical not in country_to_rows:
+                            country_to_rows[canonical] = []
+                        country_to_rows[canonical].append(row)
+
+        # Extract date range from filename for country file naming
+        basename = os.path.basename(html_filepath)
+        # basename is like "vacancies_2026-08-04_2026-09-01.html"
+        date_part = basename.replace("vacancies_", "").replace(".html", "")
+        output_dir = os.path.dirname(html_filepath)
+
+        for country, country_rows in country_to_rows.items():
+            country_filename = f"vacancies_{country}_{date_part}.html"
+            country_filepath = os.path.join(output_dir, country_filename)
+            country_html = ChunkHelper._generate_html_table(country_rows, exchange_rates_df)
+            with open(country_filepath, 'w', encoding='utf-8') as f:
+                f.write(country_html)
+            print(f"✅ Created country summary: {country_filepath}")
 
     @staticmethod
     def _generate_html_table(vacancy_rows, exchange_rates_df):
@@ -458,7 +487,7 @@ tr:hover {
 }
 .filter-actions {
     padding: 6px 12px;
-    border-top: 1px solid #ddd;
+    border-bottom: 1px solid #ddd;
     background-color: #f9f9f9;
 }
 .filter-actions button {
@@ -575,23 +604,23 @@ document.addEventListener('click', function(event) {
 <h1>Vacancy Estimation Summary</h1>
 """]
 
-        # Country filter dropdown
+        # Country filter dropdown with Check All/Uncheck All at the top
         html_parts.append("""<div class="country-filter-container">
     <button class="country-filter-btn" onclick="toggleCountryDropdown()">
         <span id="countryFilterLabel">All Countries (""" + str(len(sorted_countries)) + """)</span> ▼
     </button>
     <div id="countryDropdown" class="country-dropdown">
+        <div class="filter-actions">
+            <button onclick="selectAllCountries()">Check All</button>
+            <button onclick="deselectAllCountries()">Uncheck All</button>
+        </div>
 """)
         for country in sorted_countries:
             escaped_country = country.replace('"', '&quot;').replace("'", '&#39;')
             html_parts.append(
                 f'        <label><input type="checkbox" data-country="{escaped_country}" checked onchange="filterByCountry()"> {country}</label>\n'
             )
-        html_parts.append("""        <div class="filter-actions">
-            <button onclick="selectAllCountries()">Check All</button>
-            <button onclick="deselectAllCountries()">Uncheck All</button>
-        </div>
-    </div>
+        html_parts.append("""    </div>
 </div>
 """)
 

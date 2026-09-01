@@ -1027,7 +1027,7 @@
     ["Data migrations", "Data Migration"],
     ["Data processing", "Data pipelines", "Data Pipeline", "pipeline", "pipelines", "Dataflow", "Data Flow", "Data integration"],
     ["Control flow", "Control Flow"],
-    ["Query optimization", "Query Plan Optimization", "Plan Optimization", "SQL Optimization", "Performance Optimization", "query optimization"],
+    ["Query optimization", "query performance tuning", "database performance tuning","Query Plan Optimization", "Plan Optimization", "SQL Optimization", "Performance Optimization", "query optimization"],
     ["ai", "Artificial Intelligence"],
     ["ai/ml", "AI/ML", "Artificial Intelligence/Machine Learning"],
     ["agentic ai", "Agentic AI"],
