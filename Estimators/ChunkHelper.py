@@ -232,6 +232,19 @@ class ChunkHelper:
             est1_json = est1.get('json') or {}
             vacancy_url = est2_json.get('VacancyURL') or est1_json.get('VacancyURL')
             apply_url = est2_json.get('ApplyURL') or est1_json.get('ApplyURL')
+
+            if not vacancy_url:
+                if "LinkedIn" in v['json_path']:
+                    vacancy_url = f"https://www.linkedin.com/jobs/view/{vid}/"
+                elif "Hirify" in v['json_path']:
+                    vacancy_url = f"https://hirify.me/jobs/{vid}"
+
+            if not apply_url:
+                if "LinkedIn" in v['json_path']:
+                    apply_url = f"https://www.linkedin.com/jobs/view/{vid}/"
+                elif "Hirify" in v['json_path']:
+                    apply_url = f"https://hirify.me/jobs/{vid}"
+
             # Get vacancy title
             vacancy_title = ""
             if est1.get('json'):
