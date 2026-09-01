@@ -120,14 +120,12 @@ class HirifyNavigator(BaseNavigator):
                     print(f"  💾 Saving and processing vacancy: {current_url}")
                     tracked_vacancy_urls.append(current_url)
 
-                    if len(tracked_vacancy_urls) > 20:
-                        if len(set(tracked_vacancy_urls[-20:])) <= 4:
-                            print("🛑 Aborting: Last 20 tracked URLs contain <= 4 distinct values.")
-                            return
-                    elif len(tracked_vacancy_urls) > 8:
-                        if len(set(tracked_vacancy_urls[-8:])) <= 2:
-                            print("🛑 Aborting: Last 8 tracked URLs contain <= 2 distinct values.")
-                            return
+                    for n1, n2 in [(2, 8), (4, 16), (6, 20), (8, 24), (10, 30)]:
+                        if len(tracked_vacancy_urls) > n2:
+                            if len(set(tracked_vacancy_urls[-n2:])) <= n1:
+                                print(f"🛑 Aborting: Last {n2} tracked URLs "
+                                      f"contain <= {n1} distinct values.")
+                                return
 
                     self._save_and_process_vacancy(current_url)
                     vacancies_processed += 1
