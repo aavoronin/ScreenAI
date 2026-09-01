@@ -57,6 +57,8 @@ if __name__ == "__main__":
     if False:
         for nv in [nv1, nv2]:
             nv.analyze_collected()
+
+    nv2.run_on_urls(1)
     while True:
         for nv in [nv1, nv1, nv2]:
             for _ in range(2):
