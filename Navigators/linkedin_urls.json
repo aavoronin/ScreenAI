@@ -1,38 +1,8 @@
 {
   "search-strings":
   [
-    {
-      "str": "(C# OR \".NET\")",
-      "locations": [
-        "London", "Dublin", "Madrid", "Lisbon", "South Africa",
-        "Istanbul", "UAE", "Limassol", "Larnaca", "Pathos",
-        "Yerevan", "Tbilisi", "Batumi", "Belgrade",
-        "San Diego, California",
-        "Los Angeles, California",
-        "Tampa, Florida",
-        "Clearwater, Florida",
-        "Copenhagen, Denmark"
-      ],
-      "days": [10],
-      "frequency": 1
-    },
-    {
-      "str": "(\"Generative AI\" OR \"LLM\" OR \"NLP\" OR \"Machine Learning\" OR \"ML\")",
-      "locations": [
-        "London", "Dublin", "Madrid", "Lisbon", "South Africa",
-        "Istanbul", "UAE", "Limassol", "Larnaca", "Pathos",
-        "Yerevan", "Tbilisi", "Batumi", "Belgrade",
-        "San Diego, California",
-        "Los Angeles, California",
-        "Tampa, Florida",
-        "Clearwater, Florida",
-        "Copenhagen, Denmark"
-      ],
-      "days": [10],
-      "frequency": 1
-    },
-    {
-      "str": "(\"ETL\" OR \"SSIS\" OR \"SSAS\" OR \"ETL\" OR \"Pipeline\" OR \"Py\" OR \"Python\" OR \"SQL\" OR \"Greenplum\" OR ORACLE OR \"AZURE\" OR \"VERTICA\" OR \"PostgreSQL\" OR \"T-SQL\" OR \"Clickhouse\")",
+     {
+      "str": "(\"Data Engineer\" OR \"ETL\" OR \"SSIS\" OR \"SSAS\" OR \"Airflow\" OR \"Nifi\" OR \"ETL\" OR \"Pipeline\" OR \"Py\" OR \"Python\" OR \"SQL\" OR \"Greenplum\" OR ORACLE OR \"AZURE\" OR \"VERTICA\" OR \"PostgreSQL\" OR \"T-SQL\" OR \"MS SQL\" OR \"Clickhouse\" OR \"Greenplum\")",
       "locations": [
         "London, England",
         "Dublin, Ireland",
@@ -60,7 +30,9 @@
         "Auckland, New Zealand",
         "Sydney, Australia",
         "Melbourne, Australia",
-        "Perth, Australia"
+        "Perth, Australia",
+        "Paris, France",
+        "Tel-Aviv, Israel"
       ],
       "days": [3, 10],
       "frequency": 3,
@@ -116,6 +88,36 @@
         "Budapest, Hungary",
         "Pretoria, South Africa"
       ]
+    },
+    {
+      "str": "(C# OR .NET)",
+      "locations": [
+        "London", "Dublin", "Madrid", "Lisbon", "South Africa",
+        "Istanbul", "UAE", "Limassol", "Larnaca", "Pathos",
+        "Yerevan", "Tbilisi", "Batumi", "Belgrade",
+        "San Diego, California",
+        "Los Angeles, California",
+        "Tampa, Florida",
+        "Clearwater, Florida",
+        "Copenhagen, Denmark"
+      ],
+      "days": [10],
+      "frequency": 1
+    },
+    {
+      "str": "(\"Generative AI\" OR \"LLM\" OR \"NLP\" OR \"Machine Learning\" OR \"ML\")",
+      "locations": [
+        "London", "Dublin", "Madrid", "Lisbon", "South Africa",
+        "Istanbul", "UAE", "Limassol", "Larnaca", "Pathos",
+        "Yerevan", "Tbilisi", "Batumi", "Belgrade",
+        "San Diego, California",
+        "Los Angeles, California",
+        "Tampa, Florida",
+        "Clearwater, Florida",
+        "Copenhagen, Denmark"
+      ],
+      "days": [10],
+      "frequency": 1
     }
   ]
 }
