@@ -3,6 +3,7 @@ import re
 import json
 from datetime import datetime
 from Estimators.ExchangeRates import ExchangeRates
+
 try:
     import pandas as pd
 except ImportError:
@@ -74,12 +75,6 @@ class ChunkHelper:
         Line 1: Original values and period (e.g., per month, per hour).
         Line 2: Converted to per year in USD.
         Line 3: Converted to per year in EUR.
-
-        Conversion factors to year (defined in class constants):
-        - Hour: 40 hours/week * 52 weeks/year = 2080
-        - Day: 5 days/week * 52 weeks/year = 260
-        - Week: 52
-        - Month: 12
         """
         if not sal_curr:
             return ""
@@ -164,6 +159,57 @@ class ChunkHelper:
                         if isinstance(syn, str):
                             synonym_map[syn.lower()] = canonical
         return synonym_map, valid_canonical_names
+
+    @staticmethod
+    def _calculate_salary_stats(vacancy_rows, exchange_rates_df):
+        count = 0
+        sum_usd_min = 0.0
+        sum_usd_max = 0.0
+        sum_eur_min = 0.0
+        sum_eur_max = 0.0
+
+        for row in vacancy_rows:
+            json_data = row.get('estimation_data', {}).get('json', {})
+            sal_min = json_data.get('SalaryMin')
+            sal_max = json_data.get('SalaryMax')
+            sal_curr = json_data.get('SalaryCurrency')
+            sal_period = json_data.get('SalaryPeriod')
+
+            if not sal_curr:
+                continue
+
+            min_val = ChunkHelper._parse_salary_value(sal_min)
+            max_val = ChunkHelper._parse_salary_value(sal_max)
+
+            if min_val is None or max_val is None:
+                continue
+
+            ann_min = ChunkHelper._convert_to_annual(min_val, sal_period)
+            ann_max = ChunkHelper._convert_to_annual(max_val, sal_period)
+
+            if ann_min is None or ann_max is None:
+                continue
+
+            curr = sal_curr.upper().strip()
+
+            usd_min = ChunkHelper._convert_currency(ann_min, curr, 'USD', exchange_rates_df)
+            usd_max = ChunkHelper._convert_currency(ann_max, curr, 'USD', exchange_rates_df)
+
+            if usd_min is None or usd_max is None:
+                continue
+
+            # Filter: min >= 15000 and max < 300000
+            if usd_min >= 15000 and usd_max < 300000:
+                count += 1
+                sum_usd_min += usd_min
+                sum_usd_max += usd_max
+
+                eur_min = ChunkHelper._convert_currency(ann_min, curr, 'EUR', exchange_rates_df)
+                eur_max = ChunkHelper._convert_currency(ann_max, curr, 'EUR', exchange_rates_df)
+                if eur_min is not None: sum_eur_min += eur_min
+                if eur_max is not None: sum_eur_max += eur_max
+
+        return count, sum_usd_min, sum_usd_max, sum_eur_min, sum_eur_max
 
     @staticmethod
     def save_bulk_json_chunk(folder, selected_files):
@@ -275,8 +321,9 @@ class ChunkHelper:
             })
         # Sort by score_percentile desc, then by score desc
         vacancy_rows.sort(key=lambda x: (-x['score_percentile'], -x['score']))
+
         # Generate main HTML
-        html_content = ChunkHelper._generate_html_table(vacancy_rows, exchange_rates_df)
+        html_content = ChunkHelper._generate_html_table(vacancy_rows, exchange_rates_df, stats_title="Global")
         # Save main file
         with open(html_filepath, 'w', encoding='utf-8') as f:
             f.write(html_content)
@@ -302,22 +349,38 @@ class ChunkHelper:
 
         # Extract date range from filename for country file naming
         basename = os.path.basename(html_filepath)
-        # basename is like "vacancies_2026-08-04_2026-09-01.html"
         date_part = basename.replace("vacancies_", "").replace(".html", "")
         output_dir = os.path.dirname(html_filepath)
 
         for country, country_rows in country_to_rows.items():
-            country_filename = f"vacancies_{country}_{date_part}.html"
+            country_filename = f"vacancies_{date_part}_{country}.html"
             country_filepath = os.path.join(output_dir, country_filename)
-            country_html = ChunkHelper._generate_html_table(country_rows, exchange_rates_df)
+            country_html = ChunkHelper._generate_html_table(country_rows, exchange_rates_df, stats_title=country)
             with open(country_filepath, 'w', encoding='utf-8') as f:
                 f.write(country_html)
             print(f"✅ Created country summary: {country_filepath}")
 
     @staticmethod
-    def _generate_html_table(vacancy_rows, exchange_rates_df):
+    def _generate_html_table(vacancy_rows, exchange_rates_df, stats_title="Global"):
         """Generate HTML table with collapsible sections and country filter."""
         synonym_map, valid_canonical_names = ChunkHelper._build_country_synonym_map()
+
+        # Calculate salary statistics
+        count, sum_usd_min, sum_usd_max, sum_eur_min, sum_eur_max = ChunkHelper._calculate_salary_stats(vacancy_rows,
+                                                                                                        exchange_rates_df)
+        avg_usd_min = sum_usd_min / count if count > 0 else 0
+        avg_usd_max = sum_usd_max / count if count > 0 else 0
+        avg_eur_min = sum_eur_min / count if count > 0 else 0
+        avg_eur_max = sum_eur_max / count if count > 0 else 0
+
+        stats_html = f"""
+<div style="margin: 10px 0 20px 0; padding: 15px; background-color: #e7f3fe; border-left: 6px solid #2196F3; font-family: Arial, sans-serif;">
+    <h3 style="margin-top: 0; color: #2196F3;">Salary Statistics ({stats_title})</h3>
+    <p style="margin: 5px 0;"><strong>Vacancies in range (15k - 300k USD/year):</strong> {count}</p>
+    <p style="margin: 5px 0;"><strong>Avg USD Min:</strong> ${avg_usd_min:,.0f} | <strong>Avg USD Max:</strong> ${avg_usd_max:,.0f}</p>
+    <p style="margin: 5px 0;"><strong>Avg EUR Min:</strong> €{avg_eur_min:,.0f} | <strong>Avg EUR Max:</strong> €{avg_eur_max:,.0f}</p>
+</div>
+"""
 
         # Collect distinct countries for filter
         distinct_countries = set()
@@ -604,40 +667,47 @@ document.addEventListener('click', function(event) {
 <h1>Vacancy Estimation Summary</h1>
 """]
 
+        # Insert stats block
+        html_parts.append(stats_html)
+
         # Country filter dropdown with Check All/Uncheck All at the top
-        html_parts.append("""<div class="country-filter-container">
-    <button class="country-filter-btn" onclick="toggleCountryDropdown()">
-        <span id="countryFilterLabel">All Countries (""" + str(len(sorted_countries)) + """)</span> ▼
-    </button>
-    <div id="countryDropdown" class="country-dropdown">
-        <div class="filter-actions">
-            <button onclick="selectAllCountries()">Check All</button>
-            <button onclick="deselectAllCountries()">Uncheck All</button>
-        </div>
-""")
+        html_parts.append(
+            '<div class="country-filter-container">\n'
+            '    <button class="country-filter-btn" onclick="toggleCountryDropdown()">\n'
+            f'        <span id="countryFilterLabel">All Countries ({len(sorted_countries)})</span> ▼\n'
+            '    </button>\n'
+            '    <div id="countryDropdown" class="country-dropdown">\n'
+            '        <div class="filter-actions">\n'
+            '            <button onclick="selectAllCountries()">Check All</button>\n'
+            '            <button onclick="deselectAllCountries()">Uncheck All</button>\n'
+            '        </div>\n'
+        )
         for country in sorted_countries:
             escaped_country = country.replace('"', '&quot;').replace("'", '&#39;')
             html_parts.append(
-                f'        <label><input type="checkbox" data-country="{escaped_country}" checked onchange="filterByCountry()"> {country}</label>\n'
+                f'        <label><input type="checkbox" data-country="{escaped_country}" '
+                f'checked onchange="filterByCountry()"> {country}</label>\n'
             )
-        html_parts.append("""    </div>
-</div>
-""")
+        html_parts.append(
+            '    </div>\n'
+            '</div>\n'
+        )
 
-        html_parts.append("""<table>
-<thead>
-<tr>
-    <th style="width: 13%;">Country</th>
-    <th style="width: 30%;">VacancyTitle</th>
-    <th style="width: 13%;">Score</th>
-    <th style="width: 13%;">Score Percentile</th>
-    <th style="width: 13%;">VacancyId</th>
-    <th style="width: 13%;">Salary</th>
-    <th style="width: 5%;"></th>
-</tr>
-</thead>
-<tbody>
-""")
+        html_parts.append(
+            '<table>\n'
+            '<thead>\n'
+            '<tr>\n'
+            '    <th style="width: 13%;">Country</th>\n'
+            '    <th style="width: 30%;">VacancyTitle</th>\n'
+            '    <th style="width: 13%;">Score</th>\n'
+            '    <th style="width: 13%;">Score Percentile</th>\n'
+            '    <th style="width: 13%;">VacancyId</th>\n'
+            '    <th style="width: 13%;">Salary</th>\n'
+            '    <th style="width: 5%;"></th>\n'
+            '</tr>\n'
+            '</thead>\n'
+            '<tbody>\n'
+        )
         row_html_parts = []
         for row in vacancy_rows:
             # Extract country separately
@@ -685,40 +755,46 @@ document.addEventListener('click', function(event) {
             score_str = f"{row['score']:.2f}".rstrip('0').rstrip('.')
             score_percentile_str = f"{row['score_percentile']:.2f}".rstrip('0').rstrip('.')
             escaped_data_countries = data_countries.replace('"', '&quot;')
-            row_html = f"""            <tr class="main-row" data-countries="{escaped_data_countries}">
-                <td>{country_str}</td>
-                <td>{display_title}</td>
-                <td>{score_str}</td>
-                <td>{score_percentile_str}</td>
-                <td>{row['vacancy_id']}</td>
-                <td style="font-size: 11px; line-height: 1.4;">{salary_html}</td>
-                <td><button class="collapse-btn" onclick="toggleSection(this)">[+]</button></td>
-            </tr>
-"""
+
+            row_html = (
+                f'            <tr class="main-row" data-countries="{escaped_data_countries}">\n'
+                f'                <td>{country_str}</td>\n'
+                f'                <td>{display_title}</td>\n'
+                f'                <td>{score_str}</td>\n'
+                f'                <td>{score_percentile_str}</td>\n'
+                f'                <td>{row["vacancy_id"]}</td>\n'
+                f'                <td style="font-size: 11px; line-height: 1.4;">{salary_html}</td>\n'
+                '                <td><button class="collapse-btn" onclick="toggleSection(this)">[+]</button></td>\n'
+                '            </tr>\n'
+            )
+
             # Collapsible section
-            row_html += """            <tr class="collapsible-section">
-                <td colspan="7">
-"""
+            row_html += (
+                '            <tr class="collapsible-section">\n'
+                '                <td colspan="7">\n'
+            )
+
             # Nested table with skills comparison
             estimation_data = row.get('estimation_data', {})
             if estimation_data:
                 protocol = estimation_data.get('scoring_protocol', [])
                 if protocol:
-                    row_html += """                    <h3>Skills Comparison</h3>
-                    <table class="nested-table">
-                        <thead>
-                            <tr>
-                                <th>Vacancy</th>
-                                <th>Vacancy Field</th>
-                                <th>Score</th>
-                                <th>Score Percentile</th>
-                                <th>Resume</th>
-                                <th>Resume Field</th>
-                                <th style="width: 40%;">Message</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-"""
+                    row_html += (
+                        '                    <h3>Skills Comparison</h3>\n'
+                        '                    <table class="nested-table">\n'
+                        '                        <thead>\n'
+                        '                            <tr>\n'
+                        '                                <th>Vacancy</th>\n'
+                        '                                <th>Vacancy Field</th>\n'
+                        '                                <th>Score</th>\n'
+                        '                                <th>Score Percentile</th>\n'
+                        '                                <th>Resume</th>\n'
+                        '                                <th>Resume Field</th>\n'
+                        '                                <th style="width: 40%;">Message</th>\n'
+                        '                            </tr>\n'
+                        '                        </thead>\n'
+                        '                        <tbody>\n'
+                    )
                     for entry in protocol:
                         left = entry.get('left', '')
                         left_field = entry.get('left_field', '')
@@ -727,58 +803,70 @@ document.addEventListener('click', function(event) {
                         right = entry.get('right', '')
                         right_field = entry.get('right_field', '')
                         msg = entry.get('msg', '')
-                        row_html += f"""                            <tr>
-                                <td>{left}</td>
-                                <td>{left_field}</td>
-                                <td>{score}</td>
-                                <td>{score_pct:.2f}</td>
-                                <td>{right}</td>
-                                <td>{right_field}</td>
-                                <td>{msg}</td>
-                            </tr>
-"""
-                    row_html += """                        </tbody>
-                    </table>
-"""
+                        row_html += (
+                            '                            <tr>\n'
+                            f'                                <td>{left}</td>\n'
+                            f'                                <td>{left_field}</td>\n'
+                            f'                                <td>{score}</td>\n'
+                            f'                                <td>{score_pct:.2f}</td>\n'
+                            f'                                <td>{right}</td>\n'
+                            f'                                <td>{right_field}</td>\n'
+                            f'                                <td>{msg}</td>\n'
+                            '                            </tr>\n'
+                        )
+                    row_html += (
+                        '                        </tbody>\n'
+                        '                    </table>\n'
+                    )
                 else:
-                    row_html += """                    <h3>Skills Comparison</h3>
-                    <p>No scoring protocol available.</p>
-"""
+                    row_html += (
+                        '                    <h3>Skills Comparison</h3>\n'
+                        '                    <p>No scoring protocol available.</p>\n'
+                    )
             else:
-                row_html += """                    <h3>Skills Comparison</h3>
-                    <p>No estimation data available (both levels failed or missing).</p>
-"""
+                row_html += (
+                    '                    <h3>Skills Comparison</h3>\n'
+                    '                    <p>No estimation data available (both levels failed or missing).</p>\n'
+                )
 
             # File links
-            row_html += """                    <h3>Files</h3>
-                    <div>
-"""
+            row_html += (
+                '                    <h3>Files</h3>\n'
+                '                    <div>\n'
+            )
             if os.path.exists(row['json_path']):
-                row_html += f'                        <a href="file:///{row["json_path"].replace(chr(92), "/")}" class="file-link">📄 JSON</a>\n'
+                p = row["json_path"].replace(chr(92), "/")
+                row_html += f'                        <a href="file:///{p}" class="file-link">📄 JSON</a>\n'
             if os.path.exists(row['txt_path']):
-                row_html += f'                        <a href="file:///{row["txt_path"].replace(chr(92), "/")}" class="file-link">📄 TXT</a>\n'
+                p = row["txt_path"].replace(chr(92), "/")
+                row_html += f'                        <a href="file:///{p}" class="file-link">📄 TXT</a>\n'
             if os.path.exists(row['mhtml_path']):
-                row_html += f'                        <a href="file:///{row["mhtml_path"].replace(chr(92), "/")}" class="file-link">📄 MHTML</a>\n'
+                p = row["mhtml_path"].replace(chr(92), "/")
+                row_html += f'                        <a href="file:///{p}" class="file-link">📄 MHTML</a>\n'
             if row.get('vacancy_url'):
                 v_url = row['vacancy_url']
                 row_html += f'                        <a href="{v_url}" class="file-link" target="_blank">🔗 Vacancy URL</a>\n'
             if row.get('apply_url'):
                 a_url = row['apply_url']
                 row_html += f'                        <a href="{a_url}" class="file-link" target="_blank">🔗 Apply URL</a>\n'
-            row_html += """                    </div>
-"""
+            row_html += (
+                '                    </div>\n'
+            )
+
             # Vacancy text (strip URLs)
             clean_vacancy_text = re.sub(r'https?://\S+', '', row['vacancy_text'])
-            row_html += f"""                    <h3>Vacancy Text</h3>
-                    <div class="vacancy-text">{clean_vacancy_text}</div>
-                </td>
-            </tr>
-"""
+            row_html += (
+                '                    <h3>Vacancy Text</h3>\n'
+                f'                    <div class="vacancy-text">{clean_vacancy_text}</div>\n'
+                '                </td>\n'
+                '            </tr>\n'
+            )
             row_html_parts.append(row_html)
         html_parts.append("".join(row_html_parts))
-        html_parts.append("""        </tbody>
-</table>
-</body>
-</html>
-""")
+        html_parts.append(
+            '        </tbody>\n'
+            '</table>\n'
+            '</body>\n'
+            '</html>\n'
+        )
         return "".join(html_parts)
