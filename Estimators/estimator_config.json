@@ -65,7 +65,8 @@
       "Teradata SQL": 1,
       "DB2 SQL": 1,
       "NoSQL": 1,
-      "Query optimization": 1
+      "Query optimization": 1,
+      "vector databases": 1
     },
     "BI Platforms": {
       "Power BI": 38,
@@ -217,7 +218,8 @@
       "ai/ml": 1,
       "agentic ai": 1,
       "scikit-learn": 1,
-      "lstm": 1
+      "lstm": 1,
+      "data science": 1
     },
     "Cloud Platforms": {
       "AWS": 105,
@@ -254,7 +256,8 @@
       "Selenium": 5,
       "Jest": 4,
       "JUnit": 3,
-      "Mocha": 1
+      "Mocha": 1,
+      "unit testing": 1
     },
     "Collaboration & Project Management": {
       "Git": 22,
@@ -758,7 +761,7 @@
     ["MongoDB", "Mongo"],
     ["SQL Server", "Microsoft SQL Server", "Microsoft SQL", "Microsoft-SQL", "MSSQL", "MS SQL", "MS-SQL"],
     ["Oracle", "Oracle Database"],
-    ["T-SQL", "Transact-SQL", "Transact SQL"],
+    ["T-SQL", "Transact-SQL", "Transact SQL", "tsql"],
     ["DynamoDB", "Amazon DynamoDB", "Dynamo"],
     ["Cassandra", "Apache Cassandra"],
     ["Cosmos DB", "Azure Cosmos DB"],
@@ -770,7 +773,7 @@
     ["Druid", "Apache Druid"],
     ["Hive", "Apache Hive"],
     ["DB2 SQL", "IBM DB2", "DB2"],
-    ["Power BI", "Microsoft Power BI", "PBI"],
+    ["Power BI", "Microsoft Power BI", "PBI", "powerbi"],
     ["Qlik", "QlikView", "Qlik Sense"],
     ["Superset", "Apache Superset"],
     ["QuickSight", "Amazon QuickSight", "AWS QuickSight"],
@@ -790,7 +793,7 @@
     ["NiFi", "Apache NiFi"],
     ["ETL", "Extract, Transform, Load"],
     ["ELT", "Extract, Load, Transform"],
-    ["Data Lakehouse", "Lakehouse"],
+    ["Data Lakehouse", "Lakehouse", "data lake", "data lakes"],
     ["Data Warehouse", "data warehouses","DWH", "EDW", "Enterprise Data Warehouse", "datawarehouse", "data warehouse", "datawarehousing", "data warehousing"],
     ["OLAP", "MOLAP", "ROLAP", "olap"],
     ["CDC", "Change Data Capture"],
@@ -845,7 +848,10 @@
     ["Windows", "Microsoft Windows", "MS Windows"],
     ["UNIX", "Unix"],
     ["macOS", "Mac OS", "Mac OS X", "OS X"],
-    ["CI/CD", "Continuous Integration/Continuous Deployment", "Continuous Integration and Continuous Deployment", "CI-CD"],
+    ["CI/CD", "Continuous Integration/Continuous Deployment",
+      "Continuous Integration and Continuous Deployment", "CI-CD",
+      "ci/cd pipelines", "ci/cd tools", "ci/cd practices",
+      "ci/cd workflows", "ci/cd automation", "ci/cd tooling", "ci/cd systems"],
     ["Kubernetes", "K8s"],
     ["Terraform", "HashiCorp Terraform"],
     ["REST", "RESTful", "Representational State Transfer"],
@@ -859,7 +865,7 @@
     ["ELK", "Elastic Stack", "ELK Stack"],
     ["Delta Lake", "Delta"],
     ["Vue", "Vue.js", "VueJS"],
-    [".NET", "DotNet", "dotNET", "Microsoft .NET"],
+    [".NET", "DotNet", "dotNET", "Microsoft .NET", ".net core", ".net framework"],
     ["Microsoft Fabric", "Fabric"],
     ["Azure DevOps", "ADO", "VSTS"],
     ["OpenTelemetry", "OTel"],
@@ -1045,7 +1051,7 @@
     ["NumPy", "numpy"],
     ["Matplotlib", "matplotlib"],
     ["OpenAI", "openai"],
-    ["REST API", "RESTful API", "rest api", "rest apis"],
+    ["REST API", "RESTful API", "rest api", "rest apis", "restful apis"],
     ["Anchor Modeling", "Anchor Model"],
     ["Kimball Methodology", "Kimball"],
     ["Star Schema", "Star"],
@@ -1055,7 +1061,11 @@
     ["Table Partitioning", "Partitioning", "table partitioning"],
     ["Business Intelligence", "BI", "business intelligence"],
     ["Analytics", "Data Analytics"],
-    ["cloud", "cloud data platforms", "cloud platforms"]
+    ["cloud", "cloud data platforms", "cloud platforms"],
+    ["vector databases", "vector database"],
+    ["unit testing", "unit tests", "unit test", "test automation",
+      "automated testing frameworks", "test-driven development",
+      "testing frameworks", "test automation frameworks"]
   ],
   "industries": [
     ["FinTech", "Financial Technology", "Finance", "Banking", "Digital Banking", "Payments", "Open Banking", "BNPL", "P2P Payments", "Credit Cards"],

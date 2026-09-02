@@ -102,7 +102,9 @@ class PeriodSummary:
         PeriodSummary._create_salary_summary_html(
             salary_summary_filepath,
             chunk_data,
-            selected_files
+            selected_files,
+            period_start_str,
+            period_end_str
         )
         print(f"✅ Salary summary generated: {salary_summary_filepath}")
 
@@ -113,7 +115,9 @@ class PeriodSummary:
         PeriodSummary._create_missing_skills_html(
             missing_skills_filepath,
             chunk_data,
-            selected_files
+            selected_files,
+            period_start_str,
+            period_end_str
         )
         print(f"✅ Missing skills summary generated: {missing_skills_filepath}")
 
@@ -138,7 +142,13 @@ class PeriodSummary:
         )
 
     @staticmethod
-    def _create_salary_summary_html(filepath, chunk_data, selected_files):
+    def _create_salary_summary_html(
+        filepath,
+        chunk_data,
+        selected_files,
+        period_start_str,
+        period_end_str
+    ):
         exchange_rates_df = ExchangeRates.get_currencies()
         synonym_map, valid_canonical_names = (
             ChunkHelper._build_country_synonym_map()
@@ -318,7 +328,7 @@ table {
 border-collapse: collapse;
 background-color: white;
 box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-min-width: 700px;
+min-width: 800px;
 }
 th, td {
 border: 1px solid #ddd;
@@ -345,6 +355,11 @@ background-color: #e7f3fe;
 <h1>Salary Summary by Country</h1>
 """)
 
+        period_text = f"Period: {period_start_str} - {period_end_str}"
+        html_parts.append(
+            f'<p>{PeriodSummary._escape_html(period_text)}</p>\n'
+        )
+
         if total_count > 0 or country_rows:
             html_parts.append(
                 '<table>\n'
@@ -352,6 +367,7 @@ background-color: #e7f3fe;
                 '<tr>\n'
                 '    <th>#</th>\n'
                 '    <th>Country</th>\n'
+                '    <th>Vacancies</th>\n'
                 '    <th>Average USD Salary Range</th>\n'
                 '    <th>Average EUR Salary Range</th>\n'
                 '</tr>\n'
@@ -378,6 +394,7 @@ background-color: #e7f3fe;
                     f'                <td>'
                     f'{PeriodSummary._escape_html(row["country"])}'
                     f'</td>\n'
+                    f'                <td>{row["count"]}</td>\n'
                     f'                <td>{usd_range}</td>\n'
                     f'                <td>{eur_range}</td>\n'
                     '            </tr>\n'
@@ -405,14 +422,11 @@ background-color: #e7f3fe;
                 total_usd_range = "-"
                 total_eur_range = "-"
 
-            total_label = f"Total ({total_count} vacancies)"
-
             html_parts.append(
                 '            <tr class="total-row">\n'
                 '                <td></td>\n'
-                f'                <td>'
-                f'{PeriodSummary._escape_html(total_label)}'
-                f'</td>\n'
+                '                <td>Total</td>\n'
+                f'                <td>{total_count}</td>\n'
                 f'                <td>{total_usd_range}</td>\n'
                 f'                <td>{total_eur_range}</td>\n'
                 '            </tr>\n'
@@ -436,7 +450,13 @@ background-color: #e7f3fe;
             f.write(''.join(html_parts))
 
     @staticmethod
-    def _create_missing_skills_html(filepath, chunk_data, selected_files):
+    def _create_missing_skills_html(
+        filepath,
+        chunk_data,
+        selected_files,
+        period_start_str,
+        period_end_str
+    ):
         skill_counts = {}
 
         for v in selected_files:
@@ -467,12 +487,11 @@ background-color: #e7f3fe;
                 skill = str(
                     entry.get('missing') or entry.get('left') or ''
                 ).strip()
-                level = str(entry.get('left_field') or '').strip()
 
                 if not skill:
                     continue
 
-                key = (skill.lower(), level.lower())
+                key = skill.lower()
                 if key in seen_in_vacancy:
                     continue
 
@@ -481,7 +500,6 @@ background-color: #e7f3fe;
                 if key not in skill_counts:
                     skill_counts[key] = {
                         'skill': skill,
-                        'level': level,
                         'count': 0
                     }
 
@@ -490,18 +508,13 @@ background-color: #e7f3fe;
         rows = []
 
         for item in skill_counts.values():
-            if item['level']:
-                display_skill = f"{item['skill']} ({item['level']})"
-            else:
-                display_skill = item['skill']
-
             rows.append({
-                'display_skill': display_skill,
+                'skill': item['skill'],
                 'count': item['count']
             })
 
         rows.sort(
-            key=lambda row: (-row['count'], row['display_skill'].lower())
+            key=lambda row: (-row['count'], row['skill'].lower())
         )
 
         html_parts = []
@@ -543,6 +556,11 @@ background-color: #f1f1f1;
 <h1>Missing Skills Summary</h1>
 """)
 
+        period_text = f"Period: {period_start_str} - {period_end_str}"
+        html_parts.append(
+            f'<p>{PeriodSummary._escape_html(period_text)}</p>\n'
+        )
+
         if rows:
             html_parts.append(
                 f'<p>Total unique missing skills: {len(rows)}</p>\n'
@@ -562,7 +580,7 @@ background-color: #f1f1f1;
                     '            <tr>\n'
                     f'                <td>{i}</td>\n'
                     f'                <td>'
-                    f'{PeriodSummary._escape_html(row["display_skill"])}'
+                    f'{PeriodSummary._escape_html(row["skill"])}'
                     f'</td>\n'
                     f'                <td>{row["count"]}</td>\n'
                     '            </tr>\n'
