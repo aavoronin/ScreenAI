@@ -5,6 +5,7 @@ from datetime import datetime
 from Estimators.BaseVacancyEstimator import BaseVacancyEstimator
 from Estimators.ChunkHelper import ChunkHelper
 from Estimators.ExchangeRates import ExchangeRates
+from Estimators.HtmlHelper import HtmlHelper
 
 
 class PeriodSummary:
@@ -99,10 +100,14 @@ class PeriodSummary:
             output_folder,
             f"vacancies_{period_start_str}_{period_end_str}_SalarySummary.html"
         )
-        PeriodSummary._create_salary_summary_html(
-            salary_summary_filepath,
+        salary_data = PeriodSummary._collect_salary_summary_data(
             chunk_data,
-            selected_files,
+            selected_files
+        )
+        HtmlHelper.generate_salary_summary_html(
+            salary_summary_filepath,
+            salary_data['country_rows'],
+            salary_data['total'],
             period_start_str,
             period_end_str
         )
@@ -112,43 +117,34 @@ class PeriodSummary:
             output_folder,
             f"vacancies_{period_start_str}_{period_end_str}_MissingSkills.html"
         )
-        PeriodSummary._create_missing_skills_html(
-            missing_skills_filepath,
+        missing_skills_rows = PeriodSummary._collect_missing_skills_data(
             chunk_data,
-            selected_files,
+            selected_files
+        )
+        HtmlHelper.generate_missing_skills_html(
+            missing_skills_filepath,
+            missing_skills_rows,
             period_start_str,
             period_end_str
         )
         print(f"✅ Missing skills summary generated: {missing_skills_filepath}")
 
     @staticmethod
-    def _escape_html(value):
-        return (
-            str(value)
-            .replace('&', '&amp;')
-            .replace('<', '&lt;')
-            .replace('>', '&gt;')
-            .replace('"', '&quot;')
-            .replace("'", '&#39;')
-        )
+    def _select_estimation_data(vacancy_data):
+        est2 = vacancy_data.get('estimation2', {})
+        est1 = vacancy_data.get('estimation1', {})
+
+        # Level 2 takes priority, but if model_id is null, it is missing.
+        if est2.get('model_id') is not None:
+            return est2
+
+        if est1.get('model_id') is not None:
+            return est1
+
+        return None
 
     @staticmethod
-    def _format_salary_range(avg_min, avg_max, currency_symbol):
-        if avg_min is None or avg_max is None:
-            return "-"
-        return (
-            f"{currency_symbol}{avg_min:,.0f} - "
-            f"{currency_symbol}{avg_max:,.0f}"
-        )
-
-    @staticmethod
-    def _create_salary_summary_html(
-        filepath,
-        chunk_data,
-        selected_files,
-        period_start_str,
-        period_end_str
-    ):
+    def _collect_salary_summary_data(chunk_data, selected_files):
         exchange_rates_df = ExchangeRates.get_currencies()
         synonym_map, valid_canonical_names = (
             ChunkHelper._build_country_synonym_map()
@@ -167,16 +163,9 @@ class PeriodSummary:
             if not data:
                 continue
 
-            est2 = data.get('estimation2', {})
-            est1 = data.get('estimation1', {})
-
-            # Level 2 takes priority, but if model_id is null, it is missing.
-            if est2.get('model_id') is not None:
-                estimation_data = est2
-            elif est1.get('model_id') is not None:
-                estimation_data = est1
-            else:
-                estimation_data = {}
+            estimation_data = PeriodSummary._select_estimation_data(data)
+            if estimation_data is None:
+                continue
 
             json_data = estimation_data.get('json') or {}
 
@@ -286,7 +275,7 @@ class PeriodSummary:
                 if eur_max is not None:
                     stats['eur_max'] += eur_max
 
-        country_rows = []
+        rows_for_sort = []
 
         for country, stats in country_stats.items():
             if stats['count'] <= 0:
@@ -300,163 +289,45 @@ class PeriodSummary:
             # Sort by the midpoint of the average USD salary range.
             sort_value = (avg_usd_min + avg_usd_max) / 2.0
 
-            country_rows.append({
-                'country': country,
-                'count': stats['count'],
-                'avg_usd_min': avg_usd_min,
-                'avg_usd_max': avg_usd_max,
-                'avg_eur_min': avg_eur_min,
-                'avg_eur_max': avg_eur_max,
-                'sort_value': sort_value
-            })
+            rows_for_sort.append((
+                sort_value,
+                {
+                    'country': country,
+                    'count': stats['count'],
+                    'avg_usd_min': avg_usd_min,
+                    'avg_usd_max': avg_usd_max,
+                    'avg_eur_min': avg_eur_min,
+                    'avg_eur_max': avg_eur_max
+                }
+            ))
 
-        country_rows.sort(key=lambda row: row['sort_value'], reverse=True)
+        rows_for_sort.sort(key=lambda item: item[0], reverse=True)
+        country_rows = [row for _, row in rows_for_sort]
 
-        html_parts = []
-        html_parts.append("""<!DOCTYPE html>
-<html>
-<head>
-<meta charset="UTF-8">
-<title>Salary Summary by Country</title>
-<style>
-body {
-font-family: Arial, sans-serif;
-margin: 20px;
-background-color: #f5f5f5;
-}
-table {
-border-collapse: collapse;
-background-color: white;
-box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-min-width: 800px;
-}
-th, td {
-border: 1px solid #ddd;
-padding: 8px;
-text-align: left;
-}
-th {
-background-color: #4CAF50;
-color: white;
-}
-tr:nth-child(even) {
-background-color: #f9f9f9;
-}
-tr:hover {
-background-color: #f1f1f1;
-}
-.total-row {
-font-weight: bold;
-background-color: #e7f3fe;
-}
-</style>
-</head>
-<body>
-<h1>Salary Summary by Country</h1>
-""")
-
-        period_text = f"Period: {period_start_str} - {period_end_str}"
-        html_parts.append(
-            f'<p>{PeriodSummary._escape_html(period_text)}</p>\n'
-        )
-
-        if total_count > 0 or country_rows:
-            html_parts.append(
-                '<table>\n'
-                '<thead>\n'
-                '<tr>\n'
-                '    <th>#</th>\n'
-                '    <th>Country</th>\n'
-                '    <th>Vacancies</th>\n'
-                '    <th>Average USD Salary Range</th>\n'
-                '    <th>Average EUR Salary Range</th>\n'
-                '</tr>\n'
-                '</thead>\n'
-                '<tbody>\n'
-            )
-
-            rownum = 1
-            for row in country_rows:
-                usd_range = PeriodSummary._format_salary_range(
-                    row['avg_usd_min'],
-                    row['avg_usd_max'],
-                    '$'
-                )
-                eur_range = PeriodSummary._format_salary_range(
-                    row['avg_eur_min'],
-                    row['avg_eur_max'],
-                    '€'
-                )
-
-                html_parts.append(
-                    '            <tr>\n'
-                    f'                <td>{rownum}</td>\n'
-                    f'                <td>'
-                    f'{PeriodSummary._escape_html(row["country"])}'
-                    f'</td>\n'
-                    f'                <td>{row["count"]}</td>\n'
-                    f'                <td>{usd_range}</td>\n'
-                    f'                <td>{eur_range}</td>\n'
-                    '            </tr>\n'
-                )
-
-                rownum += 1
-
-            if total_count > 0:
-                total_avg_usd_min = total_usd_min / total_count
-                total_avg_usd_max = total_usd_max / total_count
-                total_avg_eur_min = total_eur_min / total_count
-                total_avg_eur_max = total_eur_max / total_count
-
-                total_usd_range = PeriodSummary._format_salary_range(
-                    total_avg_usd_min,
-                    total_avg_usd_max,
-                    '$'
-                )
-                total_eur_range = PeriodSummary._format_salary_range(
-                    total_avg_eur_min,
-                    total_avg_eur_max,
-                    '€'
-                )
-            else:
-                total_usd_range = "-"
-                total_eur_range = "-"
-
-            html_parts.append(
-                '            <tr class="total-row">\n'
-                '                <td></td>\n'
-                '                <td>Total</td>\n'
-                f'                <td>{total_count}</td>\n'
-                f'                <td>{total_usd_range}</td>\n'
-                f'                <td>{total_eur_range}</td>\n'
-                '            </tr>\n'
-            )
-
-            html_parts.append(
-                '        </tbody>\n'
-                '</table>\n'
-            )
+        if total_count > 0:
+            total = {
+                'count': total_count,
+                'avg_usd_min': total_usd_min / total_count,
+                'avg_usd_max': total_usd_max / total_count,
+                'avg_eur_min': total_eur_min / total_count,
+                'avg_eur_max': total_eur_max / total_count
+            }
         else:
-            html_parts.append(
-                '<p>No valid salary data found for the period.</p>\n'
-            )
+            total = {
+                'count': 0,
+                'avg_usd_min': None,
+                'avg_usd_max': None,
+                'avg_eur_min': None,
+                'avg_eur_max': None
+            }
 
-        html_parts.append(
-            '</body>\n'
-            '</html>\n'
-        )
-
-        with open(filepath, 'w', encoding='utf-8') as f:
-            f.write(''.join(html_parts))
+        return {
+            'country_rows': country_rows,
+            'total': total
+        }
 
     @staticmethod
-    def _create_missing_skills_html(
-        filepath,
-        chunk_data,
-        selected_files,
-        period_start_str,
-        period_end_str
-    ):
+    def _collect_missing_skills_data(chunk_data, selected_files):
         skill_counts = {}
 
         for v in selected_files:
@@ -465,15 +336,8 @@ background-color: #e7f3fe;
             if not data:
                 continue
 
-            est2 = data.get('estimation2', {})
-            est1 = data.get('estimation1', {})
-
-            # Level 2 takes priority, but if model_id is null, it is missing.
-            if est2.get('model_id') is not None:
-                estimation_data = est2
-            elif est1.get('model_id') is not None:
-                estimation_data = est1
-            else:
+            estimation_data = PeriodSummary._select_estimation_data(data)
+            if estimation_data is None:
                 continue
 
             protocol = estimation_data.get('scoring_protocol') or []
@@ -517,88 +381,4 @@ background-color: #e7f3fe;
             key=lambda row: (-row['count'], row['skill'].lower())
         )
 
-        html_parts = []
-        html_parts.append("""<!DOCTYPE html>
-<html>
-<head>
-<meta charset="UTF-8">
-<title>Missing Skills Summary</title>
-<style>
-body {
-font-family: Arial, sans-serif;
-margin: 20px;
-background-color: #f5f5f5;
-}
-table {
-border-collapse: collapse;
-background-color: white;
-box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-min-width: 700px;
-}
-th, td {
-border: 1px solid #ddd;
-padding: 8px;
-text-align: left;
-}
-th {
-background-color: #4CAF50;
-color: white;
-}
-tr:nth-child(even) {
-background-color: #f9f9f9;
-}
-tr:hover {
-background-color: #f1f1f1;
-}
-</style>
-</head>
-<body>
-<h1>Missing Skills Summary</h1>
-""")
-
-        period_text = f"Period: {period_start_str} - {period_end_str}"
-        html_parts.append(
-            f'<p>{PeriodSummary._escape_html(period_text)}</p>\n'
-        )
-
-        if rows:
-            html_parts.append(
-                f'<p>Total unique missing skills: {len(rows)}</p>\n'
-                '<table>\n'
-                '<thead>\n'
-                '<tr>\n'
-                '    <th>#</th>\n'
-                '    <th>Missing Skill</th>\n'
-                '    <th>Vacancies</th>\n'
-                '</tr>\n'
-                '</thead>\n'
-                '<tbody>\n'
-            )
-
-            for i, row in enumerate(rows, start=1):
-                html_parts.append(
-                    '            <tr>\n'
-                    f'                <td>{i}</td>\n'
-                    f'                <td>'
-                    f'{PeriodSummary._escape_html(row["skill"])}'
-                    f'</td>\n'
-                    f'                <td>{row["count"]}</td>\n'
-                    '            </tr>\n'
-                )
-
-            html_parts.append(
-                '        </tbody>\n'
-                '</table>\n'
-            )
-        else:
-            html_parts.append(
-                '<p>No missing skills found for the period.</p>\n'
-            )
-
-        html_parts.append(
-            '</body>\n'
-            '</html>\n'
-        )
-
-        with open(filepath, 'w', encoding='utf-8') as f:
-            f.write(''.join(html_parts))
+        return rows
