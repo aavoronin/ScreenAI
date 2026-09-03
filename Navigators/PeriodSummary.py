@@ -7,8 +7,38 @@ from Estimators.ChunkHelper import ChunkHelper
 from Estimators.ExchangeRates import ExchangeRates
 from Estimators.HtmlHelper import HtmlHelper
 
+try:
+    from lingua import Language, LanguageDetectorBuilder
+except ImportError:
+    Language = None
+    LanguageDetectorBuilder = None
+
+LANGUAGE_NAMES = {
+    'english', 'russian', 'spanish', 'french', 'german', 'italian',
+    'portuguese', 'dutch', 'polish', 'ukrainian', 'belarusian',
+    'czech', 'slovak', 'hungarian', 'romanian', 'bulgarian',
+    'serbian', 'croatian', 'bosnian', 'slovenian', 'macedonian',
+    'albanian', 'greek', 'turkish', 'arabic', 'hebrew', 'persian',
+    'farsi', 'hindi', 'urdu', 'bengali', 'punjabi', 'tamil',
+    'telugu', 'kannada', 'malayalam', 'marathi', 'gujarati',
+    'chinese', 'mandarin', 'cantonese', 'japanese', 'korean',
+    'vietnamese', 'thai', 'indonesian', 'malay', 'filipino',
+    'tagalog', 'swedish', 'norwegian', 'danish', 'finnish',
+    'icelandic', 'estonian', 'latvian', 'lithuanian', 'irish',
+    'welsh', 'scottish', 'catalan', 'basque', 'galician',
+    'afrikaans', 'swahili', 'zulu', 'xhosa', 'amharic',
+    'somali', 'hausa', 'yoruba', 'igbo', 'azerbaijani',
+    'kazakh', 'kyrgyz', 'uzbek', 'turkmen', 'tajik', 'georgian',
+    'armenian', 'latin', 'esperanto'
+}
+
+if Language is not None:
+    for language in Language:
+        LANGUAGE_NAMES.add(language.name.lower())
+
 
 class PeriodSummary:
+
     @staticmethod
     def generate_period_summary(
         navigators,
@@ -117,13 +147,14 @@ class PeriodSummary:
             output_folder,
             f"vacancies_{period_start_str}_{period_end_str}_MissingSkills.html"
         )
-        missing_skills_rows = PeriodSummary._collect_missing_skills_data(
+        missing_skills_data = PeriodSummary._collect_missing_skills_data(
             chunk_data,
             selected_files
         )
         HtmlHelper.generate_missing_skills_html(
             missing_skills_filepath,
-            missing_skills_rows,
+            missing_skills_data['skill_rows'],
+            missing_skills_data['required_language_rows'],
             period_start_str,
             period_end_str
         )
@@ -144,6 +175,256 @@ class PeriodSummary:
         return None
 
     @staticmethod
+    def _safe_list(value):
+        if isinstance(value, list):
+            return [
+                str(item).strip()
+                for item in value
+                if str(item).strip()
+            ]
+
+        if isinstance(value, str) and value.strip():
+            return [value.strip()]
+
+        return []
+
+    @staticmethod
+    def _read_vacancy_text(txt_path):
+        try:
+            with open(txt_path, 'r', encoding='utf-8', errors='ignore') as f:
+                return f.read()
+        except (IOError, OSError):
+            return ""
+
+    @staticmethod
+    def _extract_language_name(skill):
+        if not skill:
+            return None
+
+        skill_lower = str(skill).strip().lower()
+
+        if skill_lower in LANGUAGE_NAMES:
+            return skill_lower.title()
+
+        cleaned = re.sub(r'\([^)]*\)', '', skill_lower).strip()
+
+        if cleaned in LANGUAGE_NAMES:
+            return cleaned.title()
+
+        if cleaned.endswith(' language'):
+            root = cleaned[:-len(' language')].strip()
+            if root in LANGUAGE_NAMES:
+                return root.title()
+
+        return None
+
+    @staticmethod
+    def _add_language(language, seen_languages, language_counts):
+        if not language:
+            return
+
+        language = str(language).strip()
+
+        if not language:
+            return
+
+        if language.lower() in {'none', 'n/a', 'na', '-'}:
+            return
+
+        display = language.title()
+        key = display.lower()
+
+        if key in seen_languages:
+            return
+
+        seen_languages.add(key)
+
+        if key not in language_counts:
+            language_counts[key] = {
+                'language': display,
+                'count': 0
+            }
+
+        language_counts[key]['count'] += 1
+
+    @staticmethod
+    def _detect_non_english_languages(text, detector):
+        if not text or detector is None:
+            return []
+
+        total_chars = len(text)
+
+        if total_chars == 0:
+            return []
+
+        try:
+            candidates = detector.detect_multiple_languages_of(text)
+        except Exception:
+            return []
+
+        language_totals = {}
+        language_display_names = {}
+
+        for candidate in candidates:
+            iso_code = candidate.language.iso_code_639_1.name.upper()
+            span_length = candidate.end_index - candidate.start_index
+
+            if span_length <= 0:
+                continue
+
+            language_totals[iso_code] = (
+                language_totals.get(iso_code, 0) + span_length
+            )
+
+            if iso_code not in language_display_names:
+                raw_name = candidate.language.name.lower()
+                raw_name = raw_name.replace('_', ' ')
+                language_display_names[iso_code] = raw_name.title()
+
+        detected_languages = []
+
+        for iso_code, span_length in language_totals.items():
+            if iso_code == 'EN':
+                continue
+
+            percentage = span_length / total_chars
+
+            # Include only languages occupying more than 40% of the text.
+            if percentage <= 0.40:
+                continue
+
+            language_name = language_display_names.get(iso_code)
+
+            if language_name and language_name not in detected_languages:
+                detected_languages.append(language_name)
+
+        return detected_languages
+
+    @staticmethod
+    def _collect_missing_skills_data(chunk_data, selected_files):
+        known_skills = BaseVacancyEstimator()._get_all_known_tech_skills()
+
+        detector = None
+        if LanguageDetectorBuilder is not None:
+            detector = LanguageDetectorBuilder.from_all_languages().build()
+
+        skill_counts = {}
+        language_counts = {}
+
+        for v in selected_files:
+            vid = v['vacancy_id']
+            data = chunk_data.get(vid)
+
+            if not data:
+                continue
+
+            estimation_data = PeriodSummary._select_estimation_data(data)
+
+            if estimation_data is None:
+                estimation_data = {}
+
+            protocol = estimation_data.get('scoring_protocol') or []
+            json_data = estimation_data.get('json') or {}
+
+            seen_skills = set()
+            seen_languages = set()
+
+            for language in PeriodSummary._safe_list(
+                json_data.get('RequiredLanguages')
+            ):
+                PeriodSummary._add_language(
+                    language,
+                    seen_languages,
+                    language_counts
+                )
+
+            for entry in protocol:
+                # Unknown skills are marked with right_field='unknown'.
+                if entry.get('right_field') != 'unknown':
+                    continue
+
+                skill = str(
+                    entry.get('missing') or entry.get('left') or ''
+                ).strip()
+
+                if not skill:
+                    continue
+
+                language_name = PeriodSummary._extract_language_name(skill)
+
+                if language_name:
+                    PeriodSummary._add_language(
+                        language_name,
+                        seen_languages,
+                        language_counts
+                    )
+                    continue
+
+                key = skill.lower()
+
+                # Existing skills and their synonyms from estimator_config.json
+                # are excluded even if old estimator JSONs still contain them.
+                if key in known_skills:
+                    continue
+
+                if key in seen_skills:
+                    continue
+
+                seen_skills.add(key)
+
+                if key not in skill_counts:
+                    skill_counts[key] = {
+                        'skill': skill,
+                        'count': 0
+                    }
+
+                skill_counts[key]['count'] += 1
+
+            txt_path = os.path.splitext(v['json_path'])[0] + '.txt'
+            vacancy_text = PeriodSummary._read_vacancy_text(txt_path)
+
+            detected_languages = PeriodSummary._detect_non_english_languages(
+                vacancy_text,
+                detector
+            )
+
+            for language in detected_languages:
+                PeriodSummary._add_language(
+                    language,
+                    seen_languages,
+                    language_counts
+                )
+
+        skill_rows = []
+
+        for item in skill_counts.values():
+            skill_rows.append({
+                'skill': item['skill'],
+                'count': item['count']
+            })
+
+        skill_rows.sort(
+            key=lambda row: (-row['count'], row['skill'].lower())
+        )
+
+        required_language_rows = []
+
+        for item in language_counts.values():
+            required_language_rows.append({
+                'language': item['language'],
+                'count': item['count']
+            })
+
+        required_language_rows.sort(
+            key=lambda row: (-row['count'], row['language'].lower())
+        )
+
+        return {
+            'skill_rows': skill_rows,
+            'required_language_rows': required_language_rows
+        }
+
+    @staticmethod
     def _collect_salary_summary_data(chunk_data, selected_files):
         exchange_rates_df = ExchangeRates.get_currencies()
         synonym_map, valid_canonical_names = (
@@ -160,10 +441,12 @@ class PeriodSummary:
         for v in selected_files:
             vid = v['vacancy_id']
             data = chunk_data.get(vid)
+
             if not data:
                 continue
 
             estimation_data = PeriodSummary._select_estimation_data(data)
+
             if estimation_data is None:
                 continue
 
@@ -244,10 +527,12 @@ class PeriodSummary:
             if raw_str:
                 for c in raw_str.split(','):
                     c = c.strip()
+
                     if not c:
                         continue
 
                     canonical = synonym_map.get(c.lower(), c)
+
                     if canonical.lower() not in valid_canonical_names:
                         continue
 
@@ -325,60 +610,3 @@ class PeriodSummary:
             'country_rows': country_rows,
             'total': total
         }
-
-    @staticmethod
-    def _collect_missing_skills_data(chunk_data, selected_files):
-        skill_counts = {}
-
-        for v in selected_files:
-            vid = v['vacancy_id']
-            data = chunk_data.get(vid)
-            if not data:
-                continue
-
-            estimation_data = PeriodSummary._select_estimation_data(data)
-            if estimation_data is None:
-                continue
-
-            protocol = estimation_data.get('scoring_protocol') or []
-            seen_in_vacancy = set()
-
-            for entry in protocol:
-                # Unknown skills are marked with right_field='unknown'.
-                if entry.get('right_field') != 'unknown':
-                    continue
-
-                skill = str(
-                    entry.get('missing') or entry.get('left') or ''
-                ).strip()
-
-                if not skill:
-                    continue
-
-                key = skill.lower()
-                if key in seen_in_vacancy:
-                    continue
-
-                seen_in_vacancy.add(key)
-
-                if key not in skill_counts:
-                    skill_counts[key] = {
-                        'skill': skill,
-                        'count': 0
-                    }
-
-                skill_counts[key]['count'] += 1
-
-        rows = []
-
-        for item in skill_counts.values():
-            rows.append({
-                'skill': item['skill'],
-                'count': item['count']
-            })
-
-        rows.sort(
-            key=lambda row: (-row['count'], row['skill'].lower())
-        )
-
-        return rows

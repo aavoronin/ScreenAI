@@ -1,4 +1,5 @@
 class HtmlHelper:
+
     @staticmethod
     def _escape_html(value):
         return (
@@ -14,6 +15,7 @@ class HtmlHelper:
     def _format_salary_range(avg_min, avg_max, currency_symbol):
         if avg_min is None or avg_max is None:
             return "-"
+
         return (
             f"{currency_symbol}{avg_min:,.0f} - "
             f"{currency_symbol}{avg_max:,.0f}"
@@ -76,6 +78,7 @@ background-color: #e7f3fe;
         )
 
         total_count = 0
+
         if total_data:
             total_count = total_data.get('count', 0)
 
@@ -95,6 +98,7 @@ background-color: #e7f3fe;
             )
 
             rownum = 1
+
             for row in country_rows:
                 usd_range = HtmlHelper._format_salary_range(
                     row.get('avg_usd_min'),
@@ -167,9 +171,13 @@ background-color: #e7f3fe;
     def generate_missing_skills_html(
         filepath,
         skill_rows,
+        required_language_rows,
         period_start_str,
         period_end_str
     ):
+        skill_rows = skill_rows or []
+        required_language_rows = required_language_rows or []
+
         html_parts = []
         html_parts.append("""<!DOCTYPE html>
 <html>
@@ -181,6 +189,9 @@ body {
 font-family: Arial, sans-serif;
 margin: 20px;
 background-color: #f5f5f5;
+}
+h2 {
+margin-top: 30px;
 }
 table {
 border-collapse: collapse;
@@ -213,6 +224,45 @@ background-color: #f1f1f1;
         html_parts.append(
             f'<p>{HtmlHelper._escape_html(period_text)}</p>\n'
         )
+
+        html_parts.append('<h2>Required Languages</h2>\n')
+
+        if required_language_rows:
+            html_parts.append(
+                f'<p>Total required languages: '
+                f'{len(required_language_rows)}</p>\n'
+                '<table>\n'
+                '<thead>\n'
+                '<tr>\n'
+                '    <th>#</th>\n'
+                '    <th>Required Language</th>\n'
+                '    <th>Vacancies</th>\n'
+                '</tr>\n'
+                '</thead>\n'
+                '<tbody>\n'
+            )
+
+            for i, row in enumerate(required_language_rows, start=1):
+                html_parts.append(
+                    '            <tr>\n'
+                    f'                <td>{i}</td>\n'
+                    f'                <td>'
+                    f'{HtmlHelper._escape_html(row["language"])}'
+                    f'</td>\n'
+                    f'                <td>{row["count"]}</td>\n'
+                    '            </tr>\n'
+                )
+
+            html_parts.append(
+                '        </tbody>\n'
+                '</table>\n'
+            )
+        else:
+            html_parts.append(
+                '<p>No required languages found for the period.</p>\n'
+            )
+
+        html_parts.append('<h2>Missing Skills</h2>\n')
 
         if skill_rows:
             html_parts.append(

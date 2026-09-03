@@ -44,7 +44,7 @@ if __name__ == "__main__":
 
     # Generate period summary for the last 14 days
     period_end = datetime.now()
-    period_start = period_end - timedelta(days=14 * 2)
+    period_start = period_end - timedelta(days=14 * 4)
     summary_output_path = config.get_path('summary_output_path')
 
     PeriodSummary.generate_period_summary(
@@ -58,6 +58,9 @@ if __name__ == "__main__":
         for nv in [nv1, nv2]:
             nv.analyze_collected()
 
+    for nv in [nv1, nv2]:
+        for _ in range(200):
+            nv.AI_estimate_collected()
     #nv2.run_on_urls(1)
     while True:
         for nv in [nv1, nv1, nv2]:
