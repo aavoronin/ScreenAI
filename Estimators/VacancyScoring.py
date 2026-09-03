@@ -29,7 +29,8 @@ class VacancyScoring:
             "required": -5,
             "nice-to-have": -1,
         }
-        self.LEVEL_2_MIN_SCORE = 20
+        self.LEVEL_2_MIN_SCORE = 5
+        self.LEVEL_2_MIN_SCORE_PERCENTILE = 0.3
 
     def _safe_str(self, val):
         """Safely convert a value to a stripped string, handling lists by joining them."""
