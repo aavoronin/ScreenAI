@@ -296,7 +296,8 @@
     "MOLAP",
     "ROLAP",
     "In-Memory Tables",
-    "Columnstore Indexes"
+    "Columnstore Indexes",
+    "ci/cd"
   ],
   "required": [
     "MySQL",

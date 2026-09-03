@@ -10,21 +10,23 @@ from cfg.cfg import Config
 from Estimators.AI_Helper import AI_Helper
 from Estimators.VacancyScoring import VacancyScoring
 from Estimators.ChunkHelper import ChunkHelper
-
-try:
-    from lingua import Language, LanguageDetectorBuilder
-except ImportError:
-    Language = None
-    LanguageDetectorBuilder = None
+from lingua import Language, LanguageDetectorBuilder
 
 LANGUAGE_NAME_MAP = {}
 
-if Language is not None:
-    for language in Language:
-        raw_name = language.name.lower().replace('_', ' ')
-        display_name = raw_name.title()
-        LANGUAGE_NAME_MAP[raw_name] = display_name
-        LANGUAGE_NAME_MAP[raw_name.replace(' ', '')] = display_name
+_languages = []
+for attr in dir(Language):
+    if attr.startswith('_'):
+        continue
+    val = getattr(Language, attr)
+    if hasattr(val, 'name') and isinstance(getattr(val, 'name', None), str):
+        _languages.append(val)
+
+for language in _languages:
+    raw_name = str(language.name).lower().replace('_', ' ')
+    display_name = raw_name.title()
+    LANGUAGE_NAME_MAP[raw_name] = display_name
+    LANGUAGE_NAME_MAP[raw_name.replace(' ', '')] = display_name
 
 LANGUAGE_NAME_MAP.update({
     'english': 'English',
@@ -142,7 +144,6 @@ class BaseVacancyEstimator:
     for opening MHTML files, stripping tags, extracting text,
     saving results, and managing per-vacancy JSON config files.
     """
-
     PARSING_VERSION = 4
     ESTIMATION_VERSION = 15
     PARSING_PORTION = 200
@@ -157,14 +158,12 @@ class BaseVacancyEstimator:
     # ------------------------------------------------------------------
     # MHTML handling
     # ------------------------------------------------------------------
-
     def open_mhtml(self, file_path):
         print(f"📝 Opening MHTML file: {file_path}")
         with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
             msg = email.message_from_file(f)
 
         html_content = ""
-
         if msg.is_multipart():
             for part in msg.walk():
                 if part.get_content_type() == "text/html":
@@ -172,7 +171,7 @@ class BaseVacancyEstimator:
                     payload = part.get_payload(decode=True)
                     if payload:
                         html_content = payload.decode(charset, errors='ignore')
-                    break
+                        break
         else:
             charset = msg.get_content_charset() or 'utf-8'
             payload = msg.get_payload(decode=True)
@@ -186,7 +185,6 @@ class BaseVacancyEstimator:
     # ------------------------------------------------------------------
     # Generic HTML cleaning
     # ------------------------------------------------------------------
-
     def strip_tags(self, html_content, tags_to_remove):
         soup = BeautifulSoup(html_content, 'html.parser')
         for tag in soup.find_all(tags_to_remove):
@@ -195,26 +193,22 @@ class BaseVacancyEstimator:
 
     def remove_hidden_elements(self, html_content):
         soup = BeautifulSoup(html_content, 'html.parser')
-
         for tag in soup.find_all(style=re.compile(r'display\s*:\s*none', re.I)):
             tag.decompose()
-
         for tag in soup.find_all(hidden=True):
             tag.decompose()
-
         return str(soup)
 
     def extract_visible_text(self, html_content):
         soup = BeautifulSoup(html_content, 'html.parser')
         text = soup.get_text(separator='\n', strip=True)
-        text = re.sub(r'\n{3,}', '\n', text)
+        text = re.sub(r'\n{3,}', '\n\n', text)
         text = re.sub(r'[ \t]+', ' ', text)
         return text.strip()
 
     # ------------------------------------------------------------------
     # File I/O
     # ------------------------------------------------------------------
-
     def save_text(self, file_path, text):
         with open(file_path, 'w', encoding='utf-8') as f:
             f.write(text)
@@ -231,7 +225,6 @@ class BaseVacancyEstimator:
     # ------------------------------------------------------------------
     # Config (JSON) management
     # ------------------------------------------------------------------
-
     def load_config(self, json_path):
         if not os.path.exists(json_path):
             return None
@@ -245,17 +238,15 @@ class BaseVacancyEstimator:
     def save_config(self, json_path, config):
         with open(json_path, 'w', encoding='utf-8') as f:
             json.dump(config, f, indent=2, ensure_ascii=False)
-        print(f"✅ Saved config to: {json_path}")
+        #print(f"✅ Saved config to: {json_path}")
 
     def should_parse(self, json_path):
         config = self.load_config(json_path)
         if config is None:
             return True
-
         current_version = self.convert_to_int(config.get('parsing_version', 0))
         if current_version is None or current_version < self.PARSING_VERSION:
             return True
-
         return False
 
     def create_initial_config(self, saved_date=None):
@@ -271,11 +262,9 @@ class BaseVacancyEstimator:
             os.path.dirname(os.path.abspath(__file__)),
             'estimator_config.json'
         )
-
         if not os.path.exists(estimator_config_path):
             print(f"⚠️ Estimator config not found at: {estimator_config_path}")
             return {}
-
         try:
             with open(estimator_config_path, 'r', encoding='utf-8') as f:
                 return json.load(f)
@@ -287,11 +276,9 @@ class BaseVacancyEstimator:
         estimators_dir = os.path.dirname(os.path.abspath(__file__))
         project_root = os.path.dirname(estimators_dir)
         resume_path = os.path.join(project_root, self.RESUME_POINTS_FILE)
-
         if not os.path.exists(resume_path):
             print(f"⚠️ Resume points file not found: {resume_path}")
             return {}
-
         try:
             with open(resume_path, 'r', encoding='utf-8') as f:
                 return json.load(f)
@@ -302,7 +289,6 @@ class BaseVacancyEstimator:
     def _get_all_known_tech_skills(self):
         estimator_config = self._load_estimator_config()
         known_skills = set()
-
         tech_section = estimator_config.get('tech', {})
         if isinstance(tech_section, dict):
             for category, items in tech_section.items():
@@ -322,7 +308,6 @@ class BaseVacancyEstimator:
                     for syn in group:
                         if isinstance(syn, str):
                             known_skills.add(syn.lower())
-
         return known_skills
 
     def _extract_keywords_from_config(self, config_data):
@@ -390,16 +375,13 @@ class BaseVacancyEstimator:
         found = set()
         text_lower = text.lower()
         sorted_keywords = sorted(keywords, key=lambda x: -len(x))
-
         for keyword in sorted_keywords:
             keyword_lower = keyword.lower()
             escaped_keyword = re.escape(keyword_lower)
             pattern_str = escaped_keyword.replace(r'\ ', r'\s+')
             pattern = r'\b' + pattern_str + r'\b'
-
             if re.search(pattern, text_lower):
                 found.add(keyword)
-
         return sorted(found)
 
     def convert_to_int(self, text):
@@ -414,11 +396,9 @@ class BaseVacancyEstimator:
         estimator_config = self._load_estimator_config()
         if not estimator_config:
             return config
-
         keywords_list, countries_list, industries_list = (
             self._extract_keywords_from_config(estimator_config)
         )
-
         matched_keywords = self._find_matches_in_text(text, keywords_list)
         matched_countries = self._find_matches_in_text(text, countries_list)
         matched_industries = self._find_matches_in_text(text, industries_list)
@@ -427,13 +407,11 @@ class BaseVacancyEstimator:
         config['countries'] = matched_countries
         config['industries'] = matched_industries
         config['parsing_version'] = str(self.PARSING_VERSION)
-
         return config
 
     # ------------------------------------------------------------------
     # Language handling after AI prompt execution
     # ------------------------------------------------------------------
-
     def _safe_string_list(self, value):
         if isinstance(value, list):
             return [
@@ -441,17 +419,14 @@ class BaseVacancyEstimator:
                 for item in value
                 if str(item).strip()
             ]
-
         if isinstance(value, str) and value.strip():
             return [value.strip()]
-
         return []
 
     def _build_language_detector(self):
         if LanguageDetectorBuilder is None:
             print("⚠️ lingua is not installed. Language detection is disabled.")
             return None
-
         try:
             return LanguageDetectorBuilder.from_all_languages().build()
         except Exception as e:
@@ -461,9 +436,7 @@ class BaseVacancyEstimator:
     def _extract_language_names(self, value):
         if not isinstance(value, str):
             return []
-
         text = value.strip().lower()
-
         if not text or text in LANGUAGE_SKIP_VALUES:
             return []
 
@@ -477,11 +450,9 @@ class BaseVacancyEstimator:
 
         language_names = []
         unknown_tokens = []
-
         for token in tokens:
             token = token.lower()
             display = LANGUAGE_NAME_MAP.get(token)
-
             if display:
                 language_names.append(display)
             elif token in LANGUAGE_EXTRA_WORDS:
@@ -492,61 +463,46 @@ class BaseVacancyEstimator:
         if language_names and not unknown_tokens:
             unique_languages = []
             seen = set()
-
             for display in language_names:
                 key = display.lower()
                 if key not in seen:
                     seen.add(key)
                     unique_languages.append(display)
-
             return unique_languages
 
         normalized = ' '.join(tokens)
         display = LANGUAGE_NAME_MAP.get(normalized)
-
         if display:
             return [display]
-
         return []
 
     def _normalize_required_languages(self, values):
         normalized_languages = []
         seen = set()
-
         for value in self._safe_string_list(values):
             value = value.strip()
-
             if not value or value.lower() in LANGUAGE_SKIP_VALUES:
                 continue
-
             extracted = self._extract_language_names(value)
-
             if extracted:
                 candidates = extracted
             else:
                 candidates = [value.title()]
-
             for display in candidates:
                 key = display.strip().lower()
-
                 if not key or key in LANGUAGE_SKIP_VALUES:
                     continue
-
                 if key not in seen:
                     seen.add(key)
                     normalized_languages.append(display.strip())
-
         return normalized_languages
 
     def _detect_vacancy_languages(self, text, detector):
         if not text or detector is None:
             return []
-
         total_chars = len(text)
-
         if total_chars == 0:
             return []
-
         try:
             candidates = detector.detect_multiple_languages_of(text)
         except Exception as e:
@@ -554,70 +510,54 @@ class BaseVacancyEstimator:
             return []
 
         language_totals = {}
-
         for candidate in candidates:
             try:
                 iso_code = candidate.language.iso_code_639_1.name.upper()
             except Exception:
                 continue
-
             if iso_code == 'EN':
                 continue
-
             span_length = candidate.end_index - candidate.start_index
-
             if span_length <= 0:
                 continue
-
             raw_name = candidate.language.name.lower().replace('_', ' ')
             display = LANGUAGE_NAME_MAP.get(raw_name, raw_name.title())
-
             language_totals[display] = (
-                language_totals.get(display, 0) + span_length
+                    language_totals.get(display, 0) + span_length
             )
 
         detected_languages = []
         seen = set()
-
         for display, span_length in language_totals.items():
             percentage = span_length / total_chars
-
             # Include non-English languages occupying at least 20% of text.
             if percentage < 0.20:
                 continue
-
             key = display.lower()
-
             if key not in seen:
                 seen.add(key)
                 detected_languages.append(display)
-
         return detected_languages
 
     def _apply_language_requirements(self, parsed_json, vacancy_text, detector):
         if not isinstance(parsed_json, dict):
             parsed_json = {}
-
         required_languages = []
         seen = set()
 
         def add_language(display):
             if not display:
                 return
-
             key = str(display).strip().lower()
-
             if not key or key in LANGUAGE_SKIP_VALUES:
                 return
-
             if key in seen:
                 return
-
             seen.add(key)
             required_languages.append(str(display).strip())
 
         for display in self._normalize_required_languages(
-            parsed_json.get('RequiredLanguages', [])
+                parsed_json.get('RequiredLanguages', [])
         ):
             add_language(display)
 
@@ -626,34 +566,28 @@ class BaseVacancyEstimator:
             items = raw_items if isinstance(raw_items, list) else (
                 [raw_items] if raw_items else []
             )
-
             remaining_items = []
-
             for item in items:
                 language_names = self._extract_language_names(item)
-
                 if language_names:
                     for language_name in language_names:
                         add_language(language_name)
                 else:
                     remaining_items.append(item)
-
             parsed_json[level] = remaining_items
 
         for language_name in self._detect_vacancy_languages(
-            vacancy_text,
-            detector
+                vacancy_text,
+                detector
         ):
             add_language(language_name)
 
         parsed_json['RequiredLanguages'] = required_languages
-
         return parsed_json
 
     # ------------------------------------------------------------------
     # Main entry point (to be overridden by subclasses)
     # ------------------------------------------------------------------
-
     def estimate(self, mhtml_path, url: str):
         raise NotImplementedError("Subclasses must implement estimate()")
 
@@ -663,16 +597,13 @@ class BaseVacancyEstimator:
     # ------------------------------------------------------------------
     # AI estimation main entry point
     # ------------------------------------------------------------------
-
     def _load_prompt(self):
         estimators_dir = os.path.dirname(os.path.abspath(__file__))
         project_root = os.path.dirname(estimators_dir)
         prompt_path = os.path.join(project_root, self.PROMPT_FILE)
-
         if not os.path.exists(prompt_path):
             print(f"⚠️ Prompt file not found: {prompt_path}")
             return None
-
         try:
             with open(prompt_path, 'r', encoding='utf-8') as f:
                 return f.read()
@@ -695,7 +626,6 @@ class BaseVacancyEstimator:
 
         valid_files = []
         json_files = glob.glob(os.path.join(folder, '*.json'))
-
         total_json_files = len(json_files)
         valid_json_count = 0
         correct_parsed_version_count = 0
@@ -705,15 +635,12 @@ class BaseVacancyEstimator:
 
         for json_path in json_files:
             txt_path = os.path.splitext(json_path)[0] + '.txt'
-
             if not os.path.exists(txt_path):
                 continue
 
             config = self.load_config(json_path)
-
             if config is not None:
                 valid_json_count += 1
-
                 current_version = self.convert_to_int(
                     config.get('parsing_version', 0)
                 )
@@ -733,7 +660,6 @@ class BaseVacancyEstimator:
 
             if config is None:
                 continue
-
             # Skip if previously marked with an error flag
             if config.get('estimation_error'):
                 continue
@@ -756,7 +682,6 @@ class BaseVacancyEstimator:
             filename = os.path.basename(json_path)
             match = re.search(r'(\d+)', filename)
             vacancy_id = match.group(1) if match else filename
-
             txt_size = os.path.getsize(txt_path)
 
             valid_files.append({
@@ -787,7 +712,6 @@ class BaseVacancyEstimator:
 
         print(f"\n📋 Selected {len(selected_files)} vacancies (portion of "
               f"{self.PARSING_PORTION}):")
-
         for f in selected_files:
             print(
                 f"  vacancyId: {f['vacancy_id']}, saved_date: {f['saved_date_str']}, "
@@ -802,14 +726,12 @@ class BaseVacancyEstimator:
         if prompt_text is None:
             print("⚠️ Could not load prompt. Aborting.")
             return None
-
         print(f"📝 Loaded prompt: {self.PROMPT_FILE} ({len(prompt_text)} chars)")
 
         config = Config()
         cache_dir = config.get_path('cache')
         if not cache_dir:
             cache_dir = os.path.join(os.path.dirname(folder), 'cache')
-
         saved_prompts_dir = config.get_path('saved_prompts_path')
 
         ai_helper = AI_Helper(
@@ -819,7 +741,6 @@ class BaseVacancyEstimator:
             warmup_timeout=self.WARMUP_TIMEOUT,
             saved_prompts_dir=saved_prompts_dir
         )
-
         vacancy_scoring = VacancyScoring(
             resume_json=resume_json,
             known_tech_skills=known_tech_skills,
@@ -830,7 +751,6 @@ class BaseVacancyEstimator:
         )
 
         overall_start = time.time()
-
         result_data = {
             'vacancies': selected_files,
             'level1': None,
@@ -840,11 +760,9 @@ class BaseVacancyEstimator:
 
         try:
             prepared_vacancies = []
-
             for v in selected_files:
                 txt = self._read_vacancy_text(v['txt_path'])
                 cleaned_txt = self.vacancy_clean(txt)
-
                 prepared_vacancies.append({
                     'vacancy_id': v['vacancy_id'],
                     'txt_name': v['txt_name'],
@@ -870,23 +788,18 @@ class BaseVacancyEstimator:
             for v in l1_failed:
                 vid = v['vacancy_id']
                 json_path = v['json_path']
-
                 config_data = self.load_config(json_path)
                 if config_data is None:
                     config_data = {}
-
                 config_data['estimation_error'] = "Failed on all LEVEL 1 models"
                 config_data['estimation_version'] = str(self.ESTIMATION_VERSION)
-
                 self.save_config(json_path, config_data)
-
                 print(
                     f"⚠️ Vacancy {vid} failed on all LEVEL 1 models. "
                     f"Marked with error flag and skipped for future estimations."
                 )
 
             l1_by_vacancy = {}
-
             for r in l1_results:
                 if r['success']:
                     parsed = r.get('parsed_json') or {}
@@ -895,10 +808,8 @@ class BaseVacancyEstimator:
                         (v for v in selected_files if v['vacancy_id'] == r['vacancy_id']),
                         None
                     )
-
                     prepared = prepared_by_id.get(r['vacancy_id'], {})
                     vacancy_text = prepared.get('cleaned_text', '')
-
                     if not vacancy_text:
                         txt_path = prepared.get('txt_path') or (
                             v.get('txt_path') if v else ''
@@ -916,7 +827,6 @@ class BaseVacancyEstimator:
                     score, protocol, unknown, required_languages = (
                         vacancy_scoring.calculate_score(parsed)
                     )
-
                     total_abs = sum(abs(e['score']) for e in protocol)
                     vacancy_pct = round(score / total_abs, 2) if total_abs > 0 else 0.0
 
@@ -931,7 +841,6 @@ class BaseVacancyEstimator:
                             v, 'estimation1', r['model_id'], parsed, score,
                             vacancy_pct, protocol, required_languages
                         )
-
                     l1_by_vacancy[r['vacancy_id']] = r
                 else:
                     r['score'] = 0
@@ -955,13 +864,12 @@ class BaseVacancyEstimator:
             l2_candidates = [
                 v for v in l1_success
                 if l1_by_vacancy.get(v['vacancy_id'], {}).get('score', 0) >= vacancy_scoring.LEVEL_2_MIN_SCORE
-                or l1_by_vacancy.get(v['vacancy_id'], {}).get('score_percentile', 0.0) >= 0.5
+                   or l1_by_vacancy.get(v['vacancy_id'], {}).get('score_percentile', 0.0) >= vacancy_scoring.LEVEL_2_MIN_SCORE_PERCENTILE
             ]
-
             l2_skipped = [
                 v for v in l1_success
                 if l1_by_vacancy.get(v['vacancy_id'], {}).get('score', 0) < vacancy_scoring.LEVEL_2_MIN_SCORE
-                and l1_by_vacancy.get(v['vacancy_id'], {}).get('score_percentile', 0.0) < 0.5
+                   and l1_by_vacancy.get(v['vacancy_id'], {}).get('score_percentile', 0.0) < vacancy_scoring.LEVEL_2_MIN_SCORE_PERCENTILE
             ]
 
             for v in l2_skipped:
@@ -970,7 +878,6 @@ class BaseVacancyEstimator:
                 required_languages = l1_by_vacancy.get(
                     v['vacancy_id'], {}
                 ).get('required_languages', [])
-
                 protocol = [{
                     "left": "N/A",
                     "left_field": "N/A",
@@ -980,7 +887,6 @@ class BaseVacancyEstimator:
                     "msg": f"Level 2 not started: level 1 score {l1_score} (pct: {l1_pct}) "
                            f"is below minimum {vacancy_scoring.LEVEL_2_MIN_SCORE} or 0.5"
                 }]
-
                 vacancy_scoring.save_estimation_result(
                     v, 'estimation2', None, None, 0, 0.0, protocol,
                     required_languages
@@ -992,7 +898,6 @@ class BaseVacancyEstimator:
                     f"(score >= {vacancy_scoring.LEVEL_2_MIN_SCORE} or pct >= 0.5). "
                     f"{len(l2_skipped)} skipped (level 1 too low)."
                 )
-
                 l2_results, l2_success, l2_failed, l2_time, l2_model_times = (
                     ai_helper._apply_level_models_to_vacancies(
                         l2_candidates, level_n=2, level_name="LEVEL 2"
@@ -1007,10 +912,8 @@ class BaseVacancyEstimator:
                             (v for v in l2_candidates if v['vacancy_id'] == r['vacancy_id']),
                             None
                         )
-
                         prepared = prepared_by_id.get(r['vacancy_id'], {})
                         vacancy_text = prepared.get('cleaned_text', '')
-
                         if not vacancy_text:
                             txt_path = prepared.get('txt_path') or (
                                 v.get('txt_path') if v else ''
@@ -1028,7 +931,6 @@ class BaseVacancyEstimator:
                         score, protocol, unknown, required_languages = (
                             vacancy_scoring.calculate_score(parsed)
                         )
-
                         total_abs = sum(abs(e['score']) for e in protocol)
                         vacancy_pct = round(score / total_abs, 2) if total_abs > 0 else 0.0
 
@@ -1066,7 +968,6 @@ class BaseVacancyEstimator:
                     f"\n⚠️ No vacancies qualify for LEVEL 2 (all level 1 scores < "
                     f"{vacancy_scoring.LEVEL_2_MIN_SCORE} and pct < 0.5)."
                 )
-
                 result_data['level2'] = {
                     'results': [],
                     'successful_vacancies': [],
@@ -1074,7 +975,6 @@ class BaseVacancyEstimator:
                     'total_time': 0.0,
                     'model_times': {}
                 }
-
         finally:
             ai_helper.stop_server()
 
@@ -1084,10 +984,8 @@ class BaseVacancyEstimator:
         print(f"\n{'#' * 70}")
         print(f"# FINAL TIME SUMMARY")
         print(f"{'#' * 70}")
-
         l1_t = result_data['level1']['total_time'] if result_data['level1'] else 0.0
         l2_t = result_data['level2']['total_time'] if result_data['level2'] else 0.0
-
         print(f"  LEVEL 1 time: {l1_t:>10.2f}s")
         print(f"  LEVEL 2 time: {l2_t:>10.2f}s")
         print(f"  {'-' * 40}")
@@ -1095,5 +993,4 @@ class BaseVacancyEstimator:
         print(f"{'#' * 70}")
 
         ChunkHelper.save_bulk_json_chunk(folder, selected_files)
-
         return result_data

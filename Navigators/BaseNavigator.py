@@ -265,4 +265,4 @@ class BaseNavigator:
               f"Files: {len(chunk)}")
 
     def AI_estimate_collected(self):
-        self.estimator.AI_estimate_collected(self.VACANCIES_OUTPUT_PATH)
+        return self.estimator.AI_estimate_collected(self.VACANCIES_OUTPUT_PATH)
