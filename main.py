@@ -42,16 +42,16 @@ if __name__ == "__main__":
     nv2 = HirifyNavigator(OMNIPARSER_REPO_PATH)
     # nv2.group_vacancies()
 
-    for nv in [nv1, nv2]:
-        for _ in range(200):
-            n = nv.AI_estimate_collected()
-            if n == 0:
-                break
-
     # Generate period summary for the last 14 days
     period_end = datetime.now()
     period_start = period_end - timedelta(days=14 * 4)
     summary_output_path = config.get_path('summary_output_path')
+
+    for nv in [nv1]:
+        for _ in range(2):
+            n = nv.AI_estimate_collected()
+            if n == 0:
+                break
 
     PeriodSummary.generate_period_summary(
         navigators=[nv1, nv2],
@@ -60,6 +60,12 @@ if __name__ == "__main__":
         period_end=period_end
     )
 
+    for nv in [nv1, nv2]:
+        for _ in range(40):
+            n = nv.AI_estimate_collected()
+            if n == 0:
+                break
+
     if False:
         for nv in [nv1, nv2]:
             nv.analyze_collected()
@@ -67,7 +73,7 @@ if __name__ == "__main__":
     #nv2.run_on_urls(1)
     while True:
         for nv in [nv1, nv1, nv2]:
-            for _ in range(2):
+            for _ in range(8):
                 nv.AI_estimate_collected()
         for nv in [nv1, nv1, nv1, nv2]:
             nv.run_on_urls(1)

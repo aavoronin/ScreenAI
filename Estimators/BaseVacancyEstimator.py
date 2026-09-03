@@ -145,8 +145,8 @@ class BaseVacancyEstimator:
     saving results, and managing per-vacancy JSON config files.
     """
     PARSING_VERSION = 4
-    ESTIMATION_VERSION = 15
-    PARSING_PORTION = 200
+    ESTIMATION_VERSION = 16
+    PARSING_PORTION = 50
     PROMPT_FILE = "prompts/PROMPT_SIMPLE5.txt"
     RESUME_POINTS_FILE = "prompts/voronin_resume_points.json"
     VACANCY_TIMEOUT = 60 * 20
@@ -712,11 +712,13 @@ class BaseVacancyEstimator:
 
         print(f"\n📋 Selected {len(selected_files)} vacancies (portion of "
               f"{self.PARSING_PORTION}):")
-        for f in selected_files:
-            print(
-                f"  vacancyId: {f['vacancy_id']}, saved_date: {f['saved_date_str']}, "
-                f"txt: {f['txt_name']} ({f['txt_size']} bytes), json: {f['json_name']}"
-            )
+        for nn, f in enumerate(selected_files):
+            print(f"{nn:<5}{f['saved_date_str']} {f['vacancy_id']}")
+            if False:
+                print(
+                    f"  vacancyId: {f['vacancy_id']}, saved_date: {f['saved_date_str']}, "
+                    f"txt: {f['txt_name']} ({f['txt_size']} bytes), json: {f['json_name']}"
+                )
 
         if not selected_files:
             print("⚠️ No valid vacancies selected. Aborting.")
