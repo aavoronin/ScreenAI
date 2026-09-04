@@ -887,7 +887,8 @@ class BaseVacancyEstimator:
                     "score_percentile": 0.0,
                     "right_field": "missing",
                     "msg": f"Level 2 not started: level 1 score {l1_score} (pct: {l1_pct}) "
-                           f"is below minimum {vacancy_scoring.LEVEL_2_MIN_SCORE} or 0.5"
+                           f"is below minimum {vacancy_scoring.LEVEL_2_MIN_SCORE} or "
+                           f"{vacancy_scoring.LEVEL_2_MIN_SCORE_PERCENTILE}"
                 }]
                 vacancy_scoring.save_estimation_result(
                     v, 'estimation2', None, None, 0, 0.0, protocol,
@@ -897,7 +898,8 @@ class BaseVacancyEstimator:
             if l2_candidates:
                 print(
                     f"\n🎯 {len(l2_candidates)} vacancy(ies) qualify for LEVEL 2 "
-                    f"(score >= {vacancy_scoring.LEVEL_2_MIN_SCORE} or pct >= 0.5). "
+                    f"(score >= {vacancy_scoring.LEVEL_2_MIN_SCORE} or "
+                    f"pct >= {vacancy_scoring.LEVEL_2_MIN_SCORE_PERCENTILE}). "
                     f"{len(l2_skipped)} skipped (level 1 too low)."
                 )
                 l2_results, l2_success, l2_failed, l2_time, l2_model_times = (
@@ -968,7 +970,8 @@ class BaseVacancyEstimator:
             else:
                 print(
                     f"\n⚠️ No vacancies qualify for LEVEL 2 (all level 1 scores < "
-                    f"{vacancy_scoring.LEVEL_2_MIN_SCORE} and pct < 0.5)."
+                    f"{vacancy_scoring.LEVEL_2_MIN_SCORE} and "
+                    f"pct < {vacancy_scoring.LEVEL_2_MIN_SCORE_PERCENTILE})."
                 )
                 result_data['level2'] = {
                     'results': [],
