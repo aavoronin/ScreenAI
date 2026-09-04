@@ -75,7 +75,9 @@
       "TimescaleDB": 22,
       "PostGIS": 20,
       "Chroma": 17,
-      "Supabase": 16
+      "Supabase": 16,
+      "databases": 1,
+      "big data": 1
     },
     "BI Platforms": {
       "Power BI": 38,
@@ -138,7 +140,8 @@
       "Workato": 23,
       "Boomi": 22,
       "Denodo": 17,
-      "Starburst": 12
+      "Starburst": 12,
+      "mulesoft": 1
     },
     "DWH Concepts": {
       "ETL": 66,
@@ -253,6 +256,7 @@
       "scikit-learn": 1,
       "lstm": 1,
       "data science": 1,
+      "dataops": 1,
       "LLMops": 97,
       "MCP": 97,
       "agentic workflows": 45,
@@ -274,7 +278,8 @@
       "vector search": 41,
       "semantic search": 24,
       "knowledge graphs": 34,
-      "Haystack": 11
+      "Haystack": 11,
+      "graph databases": 1
     },
     "Cloud Platforms": {
       "AWS": 105,
@@ -1006,7 +1011,7 @@
     ["SCD", "Slowly Changing Dimension"],
     ["3NF", "Third Normal Form"],
     ["Machine Learning", "ML"],
-    ["LLMs", "Large Language Models", "LLM"],
+    ["LLMs", "Large Language Models", "LLM", "llm apis"],
     ["RAG", "Retrieval-Augmented Generation", "Retrieval Augmented Generation"],
     ["Generative AI", "GenAI", "Generative Artificial Intelligence"],
     ["MLOps", "Machine Learning Operations", "ML Ops"],
@@ -1064,7 +1069,7 @@
     ["API", "Application Programming Interface", "APIs"],
     ["React", "React.js", "ReactJS"],
     ["Elasticsearch", "Elastic Search", "ES", "elastic-search"],
-    ["Hadoop", "Apache Hadoop"],
+    ["Hadoop", "Apache Hadoop", "hdfs"],
     ["Spring Boot", "SpringBoot"],
     ["Next.js", "NextJS", "Next"],
     ["Ansible", "Red Hat Ansible"],
@@ -1290,7 +1295,9 @@
     ["containerization", "containers", "containerisation"],
     ["observability", "observability tools", "monitoring", "logging"],
     ["agile", "agile methodologies", "agile development methodologies"],
-    ["shell", "shell scripting"]
+    ["shell", "shell scripting"],
+    ["databases", "database"]
+
   ],
   "industries": [
     ["FinTech", "Financial Technology", "Finance", "Banking", "Digital Banking", "Payments", "Open Banking", "BNPL", "P2P Payments", "Credit Cards"],

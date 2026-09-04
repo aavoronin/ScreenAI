@@ -48,7 +48,7 @@ if __name__ == "__main__":
     summary_output_path = config.get_path('summary_output_path')
 
     for nv in [nv1]:
-        for _ in range(2):
+        for _ in range(0):
             n = nv.AI_estimate_collected()
             if n == 0:
                 break
@@ -61,7 +61,7 @@ if __name__ == "__main__":
     )
 
     for nv in [nv1, nv2]:
-        for _ in range(40):
+        for _ in range(10):
             n = nv.AI_estimate_collected()
             if n == 0:
                 break

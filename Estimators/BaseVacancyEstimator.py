@@ -146,7 +146,7 @@ class BaseVacancyEstimator:
     """
     PARSING_VERSION = 4
     ESTIMATION_VERSION = 16
-    PARSING_PORTION = 50
+    PARSING_PORTION = 200
     PROMPT_FILE = "prompts/PROMPT_SIMPLE5.txt"
     RESUME_POINTS_FILE = "prompts/voronin_resume_points.json"
     VACANCY_TIMEOUT = 60 * 20
