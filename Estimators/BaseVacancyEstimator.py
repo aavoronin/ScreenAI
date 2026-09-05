@@ -612,6 +612,7 @@ class BaseVacancyEstimator:
             return None
 
     def AI_estimate_collected(self, folder):
+        print_missing_skills = False
         print(f"\n{'#' * 70}")
         print(f"# Starting AI estimation for {folder}")
         print(f"{'#' * 70}")
@@ -853,7 +854,8 @@ class BaseVacancyEstimator:
 
             ai_helper._print_level_summary("LEVEL 1", l1_results, l1_success, l1_failed, l1_time)
             ai_helper._print_model_usage_table("LEVEL 1", l1_results, l1_model_times)
-            ai_helper._print_unknown_skills_summary("LEVEL 1", l1_results)
+            if print_missing_skills:
+                ai_helper._print_unknown_skills_summary("LEVEL 1", l1_results)
 
             result_data['level1'] = {
                 'results': l1_results,
@@ -958,7 +960,8 @@ class BaseVacancyEstimator:
 
                 ai_helper._print_level_summary("LEVEL 2", l2_results, l2_success, l2_failed, l2_time)
                 ai_helper._print_model_usage_table("LEVEL 2", l2_results, l2_model_times)
-                ai_helper._print_unknown_skills_summary("LEVEL 2", l2_results)
+                if print_missing_skills:
+                    ai_helper._print_unknown_skills_summary("LEVEL 2", l2_results)
 
                 result_data['level2'] = {
                     'results': l2_results,
