@@ -1,7 +1,9 @@
 import os
 import re
+import json
 from Estimators.ChunkHelper import ChunkHelper
 from Estimators.ExchangeRates import ExchangeRates
+
 
 class ChunkHtmlHelper:
     @staticmethod
@@ -58,12 +60,14 @@ class ChunkHtmlHelper:
 
     @staticmethod
     def _calculate_salary_stats(vacancy_rows, exchange_rates_df):
-        count = 0
-        sum_usd_min = 0.0
-        sum_usd_max = 0.0
-        sum_eur_min = 0.0
-        sum_eur_max = 0.0
-        for row in vacancy_rows:
+        """
+        Calculate qualified salaries for average calculation.
+        Returns a list of dictionaries containing salary data and associated countries.
+        """
+        qualified_salaries = []
+        synonym_map, valid_canonical_names = ChunkHelper._build_country_synonym_map()
+
+        for idx, row in enumerate(vacancy_rows):
             json_data = row.get('estimation_data', {}).get('json', {})
             sal_min = json_data.get('SalaryMin')
             sal_max = json_data.get('SalaryMax')
@@ -71,29 +75,51 @@ class ChunkHtmlHelper:
             sal_period = json_data.get('SalaryPeriod')
             if not sal_curr:
                 continue
+
             min_val = ChunkHelper._parse_salary_value(sal_min)
             max_val = ChunkHelper._parse_salary_value(sal_max)
             if min_val is None or max_val is None:
                 continue
+
             ann_min = ChunkHelper._convert_to_annual(min_val, sal_period)
             ann_max = ChunkHelper._convert_to_annual(max_val, sal_period)
             if ann_min is None or ann_max is None:
                 continue
+
             curr = sal_curr.upper().strip()
             usd_min = ChunkHelper._convert_currency(ann_min, curr, 'USD', exchange_rates_df)
             usd_max = ChunkHelper._convert_currency(ann_max, curr, 'USD', exchange_rates_df)
             if usd_min is None or usd_max is None:
                 continue
+
             # Filter: min >= 15000 and max < 300000
             if usd_min >= 15000 and usd_max < 300000:
-                count += 1
-                sum_usd_min += usd_min
-                sum_usd_max += usd_max
                 eur_min = ChunkHelper._convert_currency(ann_min, curr, 'EUR', exchange_rates_df)
                 eur_max = ChunkHelper._convert_currency(ann_max, curr, 'EUR', exchange_rates_df)
-                if eur_min is not None: sum_eur_min += eur_min
-                if eur_max is not None: sum_eur_max += eur_max
-        return count, sum_usd_min, sum_usd_max, sum_eur_min, sum_eur_max
+
+                country_val = json_data.get('CandidateCountry') or json_data.get('EmployerCountry')
+                raw_str = ChunkHelper._extract_country_str(country_val)
+                row_countries = []
+                if raw_str:
+                    for c in raw_str.split(','):
+                        c = c.strip()
+                        if not c:
+                            continue
+                        canonical = synonym_map.get(c.lower(), c)
+                        if canonical.lower() in valid_canonical_names:
+                            if canonical not in row_countries:
+                                row_countries.append(canonical)
+
+                qualified_salaries.append({
+                    'rowId': idx,
+                    'usdMin': usd_min,
+                    'usdMax': usd_max,
+                    'eurMin': eur_min if eur_min is not None else 0,
+                    'eurMax': eur_max if eur_max is not None else 0,
+                    'countries': row_countries
+                })
+
+        return qualified_salaries
 
     @staticmethod
     def create_html_summary(chunk_filepath, chunk_data, selected_files, chunks_dir):
@@ -173,8 +199,10 @@ class ChunkHtmlHelper:
                 'vacancy_url': vacancy_url,
                 'apply_url': apply_url
             })
-        # Sort by score_percentile desc, then by score desc
-        vacancy_rows.sort(key=lambda x: (-x['score_percentile'], -x['score']))
+
+        # Sort by Score * abs(score_percentile) descending
+        vacancy_rows.sort(key=lambda x: -(x['score'] * abs(x['score_percentile'])))
+
         # Generate main HTML
         html_content = ChunkHtmlHelper._generate_html_table(vacancy_rows, exchange_rates_df, stats_title="Global")
         # Save main file
@@ -214,21 +242,34 @@ class ChunkHtmlHelper:
     def _generate_html_table(vacancy_rows, exchange_rates_df, stats_title="Global"):
         """Generate HTML table with collapsible sections and country filter."""
         synonym_map, valid_canonical_names = ChunkHelper._build_country_synonym_map()
-        # Calculate salary statistics
-        count, sum_usd_min, sum_usd_max, sum_eur_min, sum_eur_max = ChunkHtmlHelper._calculate_salary_stats(vacancy_rows,
-                                                                                                          exchange_rates_df)
+
+        # Calculate salary statistics and get qualified salaries
+        qualified_salaries = ChunkHtmlHelper._calculate_salary_stats(vacancy_rows, exchange_rates_df)
+
+        count = len(qualified_salaries)
+        sum_usd_min = sum(q['usdMin'] for q in qualified_salaries)
+        sum_usd_max = sum(q['usdMax'] for q in qualified_salaries)
+        sum_eur_min = sum(q['eurMin'] for q in qualified_salaries)
+        sum_eur_max = sum(q['eurMax'] for q in qualified_salaries)
+
         avg_usd_min = sum_usd_min / count if count > 0 else 0
         avg_usd_max = sum_usd_max / count if count > 0 else 0
         avg_eur_min = sum_eur_min / count if count > 0 else 0
         avg_eur_max = sum_eur_max / count if count > 0 else 0
+
         stats_html = f"""
-<div style="margin: 10px 0 20px 0; padding: 15px; background-color: #e7f3fe; border-left: 6px solid #2196F3; font-family: Arial, sans-serif;">
+<div id="salaryStatsBlock" style="margin: 10px 0 20px 0; padding: 15px; background-color: #e7f3fe; border-left: 6px solid #2196F3; font-family: Arial, sans-serif;">
 <h3 style="margin-top: 0; color: #2196F3;">Salary Statistics ({stats_title})</h3>
-<p style="margin: 5px 0;"><strong>Vacancies in range (15k - 300k USD/year):</strong> {count}</p>
+"""
+        if count == 0:
+            stats_html += '<p style="margin: 5px 0;"><strong>No data</strong></p>\n'
+        else:
+            stats_html += f"""<p style="margin: 5px 0;"><strong>Vacancies in range (15k - 300k USD/year):</strong> {count}</p>
 <p style="margin: 5px 0;"><strong>Avg USD Min:</strong> ${avg_usd_min:,.0f} | <strong>Avg USD Max:</strong> ${avg_usd_max:,.0f}</p>
 <p style="margin: 5px 0;"><strong>Avg EUR Min:</strong> €{avg_eur_min:,.0f} | <strong>Avg EUR Max:</strong> €{avg_eur_max:,.0f}</p>
-</div>
 """
+        stats_html += "</div>\n"
+
         # Collect distinct countries for filter
         distinct_countries = set()
         for row in vacancy_rows:
@@ -244,6 +285,10 @@ class ChunkHtmlHelper:
                     if canonical.lower() in valid_canonical_names:
                         distinct_countries.add(canonical)
         sorted_countries = sorted(list(distinct_countries))
+
+        escaped_stats_title = stats_title.replace('"', '\\"').replace("'", "\\'")
+        qualified_salaries_json = json.dumps(qualified_salaries)
+
         html_parts = ["""<!DOCTYPE html>
 <html>
 <head>
@@ -413,6 +458,9 @@ background-color: #45a049;
 }
 </style>
 <script>
+var currentStatsTitle = \"""" + escaped_stats_title + """\";
+var qualifiedSalaries = """ + qualified_salaries_json + """;
+
 function toggleSection(btn) {
 var section = btn.parentElement.parentElement.nextElementSibling;
 if (section.classList.contains('show')) {
@@ -423,6 +471,55 @@ section.classList.add('show');
 btn.textContent = '[-]';
 }
 }
+
+function recalculateSalary(selectedCountries) {
+var count = 0;
+var sumUsdMin = 0, sumUsdMax = 0, sumEurMin = 0, sumEurMax = 0;
+
+var checkboxes = document.querySelectorAll('#countryDropdown input[type="checkbox"][data-country]');
+var useAll = selectedCountries.length === 0 || selectedCountries.length === checkboxes.length;
+
+qualifiedSalaries.forEach(function(q) {
+    var match = false;
+    if (useAll) {
+        match = true;
+    } else {
+        for (var i = 0; i < selectedCountries.length; i++) {
+            if (q.countries.indexOf(selectedCountries[i]) !== -1) {
+                match = true;
+                break;
+            }
+        }
+    }
+
+    if (match) {
+        count++;
+        sumUsdMin += q.usdMin;
+        sumUsdMax += q.usdMax;
+        sumEurMin += q.eurMin;
+        sumEurMax += q.eurMax;
+    }
+});
+
+var statsDiv = document.getElementById('salaryStatsBlock');
+var html = '<h3 style="margin-top: 0; color: #2196F3;">Salary Statistics (' + currentStatsTitle + ')</h3>';
+if (count === 0) {
+    html += '<p style="margin: 5px 0;"><strong>No data</strong></p>';
+} else {
+    var avgUsdMin = sumUsdMin / count;
+    var avgUsdMax = sumUsdMax / count;
+    var avgEurMin = sumEurMin / count;
+    var avgEurMax = sumEurMax / count;
+
+    html += '<p style="margin: 5px 0;"><strong>Vacancies in range (15k - 300k USD/year):</strong> ' + count + '</p>';
+    html += '<p style="margin: 5px 0;"><strong>Avg USD Min:</strong> $' + avgUsdMin.toLocaleString('en-US', {maximumFractionDigits: 0}) + 
+            ' | <strong>Avg USD Max:</strong> $' + avgUsdMax.toLocaleString('en-US', {maximumFractionDigits: 0}) + '</p>';
+    html += '<p style="margin: 5px 0;"><strong>Avg EUR Min:</strong> €' + avgEurMin.toLocaleString('en-US', {maximumFractionDigits: 0}) + 
+            ' | <strong>Avg EUR Max:</strong> €' + avgEurMax.toLocaleString('en-US', {maximumFractionDigits: 0}) + '</p>';
+}
+statsDiv.innerHTML = html;
+}
+
 function toggleCountryDropdown() {
 var dropdown = document.getElementById('countryDropdown');
 dropdown.style.display = dropdown.style.display === 'block' ? 'none' : 'block';
@@ -486,6 +583,8 @@ nextRow.classList.remove('show');
 }
 }
 });
+
+recalculateSalary(selected);
 }
 // Close dropdown when clicking outside
 document.addEventListener('click', function(event) {
