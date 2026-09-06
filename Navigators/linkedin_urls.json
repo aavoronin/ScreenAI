@@ -2,8 +2,9 @@
   "search-strings":
   [
      {
-      "str": "(\"Data Engineer\" OR \"ETL\" OR \"SSIS\" OR \"SSAS\" OR \"Airflow\" OR \"Nifi\" OR \"ETL\" OR \"Pipeline\" OR \"Py\" OR \"Python\" OR \"SQL\" OR \"Greenplum\" OR ORACLE OR \"AZURE\" OR \"VERTICA\" OR \"PostgreSQL\" OR \"T-SQL\" OR \"MS SQL\" OR \"Clickhouse\" OR \"Greenplum\")",
+      "str": "(\"Data Engineer\" OR \"ETL\" OR \"SSIS\" OR \"SSAS\" OR \"Airflow\" OR \"Nifi\" OR \"ETL\" OR \"Pipeline\" OR \"Py\" OR \"Python\" OR \"SQL\" OR \"Greenplum\" OR ORACLE OR \"AZURE\" OR \"VERTICA\" OR \"PostgreSQL\" OR \"T-SQL\" OR \"MS SQL\" OR \"Clickhouse\")",
       "locations": [
+        "Russia",
         "London, England",
         "Dublin, Ireland",
         "Madrid",
@@ -52,6 +53,7 @@
       "days": [3, 10],
       "frequency": 3,
       "locations-backup": [
+        "Russia",
         "Ventura, California",
         "Pasadena, California",
         "Sacramento, California",
@@ -107,6 +109,7 @@
     {
       "str": "(C# OR .NET)",
       "locations": [
+        "Russia",
         "London", "Dublin", "Madrid", "Lisbon", "South Africa",
         "Istanbul", "UAE", "Limassol", "Larnaca", "Pathos",
         "Yerevan", "Tbilisi", "Batumi", "Belgrade",

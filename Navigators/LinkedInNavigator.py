@@ -159,6 +159,8 @@ class LinkedInNavigator(BaseNavigator):
             for _ in range(10):
                 try:
                     self.check_wait()
+                    pyautogui.press('esc')
+                    time.sleep(0.3)
                     self.obtain_screen_size()
                     screenshot = self._grab_screenshot()
                     self.parser.parse_screen(screenshot)
@@ -245,9 +247,12 @@ class LinkedInNavigator(BaseNavigator):
                 print("➡️ Next button detected. Clicking and waiting 20s...")
                 self.click_bbox_center(next_buttons[0]['bbox'])
                 time.sleep(20)
+                pyautogui.press('esc')
+                pyautogui.press('esc')
                 # Loop continues, which will parse screen again
             elif scroll_downs:
                 print(f"️ Scroll down (triangle_down) detected. Clicking {self.MAX_SCROLL_DOWNS} times...")
+                pyautogui.press('esc')
                 pyautogui.press('esc')
                 time.sleep(0.3)
                 screenshot_before = self._grab_screenshot().convert('L')

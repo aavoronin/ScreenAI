@@ -11,21 +11,21 @@ from cfg.cfg import Config
 # CONFIGURATION
 # ==========================================
 config = Config()
-INPUT_DIR = config.get_path('input_dir')
-OUTPUT_DIR = config.get_path('output_dir')
+SCREENS_INPUT_DIR = config.get_path('screens_input_dir')
+SCREENS_OUTPUT_DIR = config.get_path('screens_output_dir')
 OMNIPARSER_REPO_PATH = config.get_path('omniparser_repo_path')
 
 
 def test_screenshots():
     # Ensure directories exist
-    os.makedirs(INPUT_DIR, exist_ok=True)
-    os.makedirs(OUTPUT_DIR, exist_ok=True)
+    os.makedirs(SCREENS_INPUT_DIR, exist_ok=True)
+    os.makedirs(SCREENS_OUTPUT_DIR, exist_ok=True)
 
-    print(f"\n🔍 Scanning for PNG files in: {INPUT_DIR}")
-    png_files = glob.glob(os.path.join(INPUT_DIR, "*.png"))
+    print(f"\n🔍 Scanning for PNG files in: {SCREENS_INPUT_DIR}")
+    png_files = glob.glob(os.path.join(SCREENS_INPUT_DIR, "*.png"))
 
     if not png_files:
-        print(f"⚠️ No PNG files found in {INPUT_DIR}.")
+        print(f"⚠️ No PNG files found in {SCREENS_INPUT_DIR}.")
         print("💡 Please place your screenshot files (e.g., screen00001.png) "
               "in this folder and run again.")
     else:
@@ -80,7 +80,7 @@ def test_screenshots():
 
             # Save the full parsed data to the output folder
             base_name = os.path.splitext(filename)[0]
-            output_file = os.path.join(OUTPUT_DIR, f"{base_name}.json")
+            output_file = os.path.join(SCREENS_OUTPUT_DIR, f"{base_name}.json")
 
             save_data = {
                 "filename": filename,
@@ -94,7 +94,7 @@ def test_screenshots():
             print(f"  💾 Saved parsed data to: {output_file}")
 
             # Draw and save the expanded parsed image
-            parsed_image_path = os.path.join(OUTPUT_DIR, f"{base_name}_parsed.png")
+            parsed_image_path = os.path.join(SCREENS_OUTPUT_DIR, f"{base_name}_parsed.png")
             parser.draw_and_save_parsed_image(parsed_image_path)
             print(f"  🖼️ Saved parsed image to: {parsed_image_path}")
 

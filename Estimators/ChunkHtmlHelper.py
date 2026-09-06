@@ -122,10 +122,10 @@ class ChunkHtmlHelper:
         return qualified_salaries
 
     @staticmethod
-    def create_html_summary(chunk_filepath, chunk_data, selected_files, chunks_dir):
+    def create_html_summary(chunk_filepath, chunk_data, selected_files, chunks_dir, generate_country_files=True):
         """
         Create an MHTML file with a summary table of vacancies.
-        Also creates per-country summary files.
+        Also creates per-country summary files if generate_country_files is True.
         """
         # Create MHTML filename (same as chunk but with .html extension)
         html_filepath = os.path.splitext(chunk_filepath)[0] + '.html'
@@ -209,34 +209,37 @@ class ChunkHtmlHelper:
         with open(html_filepath, 'w', encoding='utf-8') as f:
             f.write(html_content)
         print(f"✅ Created MHTML summary: {html_filepath}")
-        # Generate per-country summary files
-        synonym_map, valid_canonical_names = ChunkHelper._build_country_synonym_map()
-        country_to_rows = {}
-        for row in vacancy_rows:
-            json_data = row.get('estimation_data', {}).get('json', {})
-            country_val = json_data.get('CandidateCountry') or json_data.get('EmployerCountry')
-            raw_str = ChunkHelper._extract_country_str(country_val)
-            if raw_str:
-                for c in raw_str.split(','):
-                    c = c.strip()
-                    if not c:
-                        continue
-                    canonical = synonym_map.get(c.lower(), c)
-                    if canonical.lower() in valid_canonical_names:
-                        if canonical not in country_to_rows:
-                            country_to_rows[canonical] = []
-                        country_to_rows[canonical].append(row)
-        # Extract date range from filename for country file naming
-        basename = os.path.basename(html_filepath)
-        date_part = basename.replace("vacancies_", "").replace(".html", "")
-        output_dir = os.path.dirname(html_filepath)
-        for country, country_rows in country_to_rows.items():
-            country_filename = f"vacancies_{date_part}_{country}.html"
-            country_filepath = os.path.join(output_dir, country_filename)
-            country_html = ChunkHtmlHelper._generate_html_table(country_rows, exchange_rates_df, stats_title=country)
-            with open(country_filepath, 'w', encoding='utf-8') as f:
-                f.write(country_html)
-            print(f"✅ Created country summary: {country_filepath}")
+
+        if generate_country_files:
+            # Generate per-country summary files
+            synonym_map, valid_canonical_names = ChunkHelper._build_country_synonym_map()
+            country_to_rows = {}
+            for row in vacancy_rows:
+                json_data = row.get('estimation_data', {}).get('json', {})
+                country_val = json_data.get('CandidateCountry') or json_data.get('EmployerCountry')
+                raw_str = ChunkHelper._extract_country_str(country_val)
+                if raw_str:
+                    for c in raw_str.split(','):
+                        c = c.strip()
+                        if not c:
+                            continue
+                        canonical = synonym_map.get(c.lower(), c)
+                        if canonical.lower() in valid_canonical_names:
+                            if canonical not in country_to_rows:
+                                country_to_rows[canonical] = []
+                            country_to_rows[canonical].append(row)
+            # Extract date range from filename for country file naming
+            basename = os.path.basename(html_filepath)
+            date_part = basename.replace("vacancies_", "").replace(".html", "")
+            output_dir = os.path.dirname(html_filepath)
+            for country, country_rows in country_to_rows.items():
+                country_filename = f"vacancies_{date_part}_{country}.html"
+                country_filepath = os.path.join(output_dir, country_filename)
+                country_html = ChunkHtmlHelper._generate_html_table(country_rows, exchange_rates_df,
+                                                                    stats_title=country)
+                with open(country_filepath, 'w', encoding='utf-8') as f:
+                    f.write(country_html)
+                print(f"✅ Created country summary: {country_filepath}")
 
     @staticmethod
     def _generate_html_table(vacancy_rows, exchange_rates_df, stats_title="Global"):

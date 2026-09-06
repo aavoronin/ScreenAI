@@ -36,16 +36,11 @@ if __name__ == "__main__":
     ExchangeRates.download_exchange_rates()
 
     # verify_gpu()
-    # test_screenshots()
+    #test_screenshots()
     nv1 = LinkedInNavigator(OMNIPARSER_REPO_PATH)
     # nv1.group_vacancies()
     nv2 = HirifyNavigator(OMNIPARSER_REPO_PATH)
     # nv2.group_vacancies()
-
-    # Generate period summary for the last 14 days
-    period_end = datetime.now()
-    period_start = period_end - timedelta(days=14 * 4)
-    summary_output_path = config.get_path('summary_output_path')
 
     for nv in [nv1]:
         for _ in range(0):
@@ -53,12 +48,23 @@ if __name__ == "__main__":
             if n == 0:
                 break
 
-    PeriodSummary.generate_period_summary(
-        navigators=[nv1, nv2],
-        output_folder=summary_output_path,
-        period_start=period_start,
-        period_end=period_end
-    )
+    MAX_d = 14 * 4
+    if True:
+        for d in [MAX_d, 14, 7, 5, 3, 1]:
+            # Generate period summary for the last 14 days
+            period_end = datetime.now()
+            period_start = period_end - timedelta(days=d)
+            summary_output_path = config.get_path('summary_output_path')
+
+            PeriodSummary.generate_period_summary(
+                navigators=[nv1, nv2],
+                output_folder=summary_output_path,
+                period_start=period_start,
+                period_end=period_end,
+                generate_country_files=(d == MAX_d),
+                generate_missing_skills=(d == MAX_d),
+                generate_all_skills=(d == MAX_d)
+            )
 
     for nv in [nv1, nv2]:
         for _ in range(10):
@@ -73,12 +79,16 @@ if __name__ == "__main__":
     #nv2.run_on_urls(1)
     while True:
         for nv in [nv1, nv1, nv2]:
-            for _ in range(8):
-                nv.AI_estimate_collected()
-        for nv in [nv1, nv1, nv1, nv2]:
+            for _ in range(0):
+                n = nv.AI_estimate_collected()
+                if n == 0:
+                    break
+        for nv in [nv2, nv1, nv1, nv1, nv1, nv1, nv1]:
             nv.run_on_urls(1)
-        for i in range(10):
-            for nv in [nv1, nv1]:
-                nv.AI_estimate_collected()
-            for nv in [nv1]:
+        for i in range(4):
+            for nv in [nv1, nv2]:
+                n = nv.AI_estimate_collected()
+                if n == 0:
+                    break
+            for nv in [nv1, nv1, nv1, nv1]:
                 nv.run_on_urls(1)

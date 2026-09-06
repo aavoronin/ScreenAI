@@ -40,13 +40,17 @@ if Language is not None:
     except TypeError:
         pass
 
+
 class PeriodSummary:
     @staticmethod
     def generate_period_summary(
-        navigators,
-        output_folder,
-        period_start,
-        period_end
+            navigators,
+            output_folder,
+            period_start,
+            period_end,
+            generate_country_files=True,
+            generate_missing_skills=True,
+            generate_all_skills=True
     ):
         """
         Generate a period summary HTML file for vacancies parsed and estimated
@@ -101,17 +105,31 @@ class PeriodSummary:
         if not selected_files:
             print("ℹ️ No vacancies found matching the criteria for the specified period.")
             return
-        period_start_str = period_start.strftime("%Y-%m-%d") if isinstance(period_start, datetime) else str(
-            period_start).replace(':', '-')
+
+        if isinstance(period_start, datetime) and isinstance(period_end, datetime):
+            days_covered = (period_end - period_start).days
+        else:
+            days_covered = 0
+
         period_end_str = period_end.strftime("%Y-%m-%d") if isinstance(period_end, datetime) else str(
             period_end).replace(':', '-')
-        chunk_filename = f"vacancies_{period_start_str}_{period_end_str}.html"
+
+        base_filename = f"vacancies_{period_end_str}_{days_covered}_days"
+
+        chunk_filename = f"{base_filename}.html"
         chunk_filepath = os.path.join(output_folder, chunk_filename)
-        ChunkHtmlHelper.create_html_summary(chunk_filepath, chunk_data, selected_files, output_folder)
+        ChunkHtmlHelper.create_html_summary(
+            chunk_filepath,
+            chunk_data,
+            selected_files,
+            output_folder,
+            generate_country_files=generate_country_files
+        )
         print(f"✅ Period summary generated: {chunk_filepath}")
+
         salary_summary_filepath = os.path.join(
             output_folder,
-            f"vacancies_{period_start_str}_{period_end_str}_SalarySummary.html"
+            f"{base_filename}_SalarySummary.html"
         )
         salary_data = PeriodSummary._collect_salary_summary_data(
             chunk_data,
@@ -121,26 +139,45 @@ class PeriodSummary:
             salary_summary_filepath,
             salary_data['country_rows'],
             salary_data['total'],
-            period_start_str,
-            period_end_str
+            period_end_str,
+            days_covered
         )
         print(f"✅ Salary summary generated: {salary_summary_filepath}")
-        missing_skills_filepath = os.path.join(
-            output_folder,
-            f"vacancies_{period_start_str}_{period_end_str}_MissingSkills.html"
-        )
-        missing_skills_data = PeriodSummary._collect_missing_skills_data(
-            chunk_data,
-            selected_files
-        )
-        HtmlHelper.generate_missing_skills_html(
-            missing_skills_filepath,
-            missing_skills_data['skill_rows'],
-            missing_skills_data['required_language_rows'],
-            period_start_str,
-            period_end_str
-        )
-        print(f"✅ Missing skills summary generated: {missing_skills_filepath}")
+
+        if generate_missing_skills:
+            missing_skills_filepath = os.path.join(
+                output_folder,
+                f"{base_filename}_MissingSkills.html"
+            )
+            missing_skills_data = PeriodSummary._collect_missing_skills_data(
+                chunk_data,
+                selected_files
+            )
+            HtmlHelper.generate_missing_skills_html(
+                missing_skills_filepath,
+                missing_skills_data['skill_rows'],
+                missing_skills_data['required_language_rows'],
+                period_end_str,
+                days_covered
+            )
+            print(f"✅ Missing skills summary generated: {missing_skills_filepath}")
+
+        if generate_all_skills:
+            all_skills_filepath = os.path.join(
+                output_folder,
+                f"{base_filename}_AllSkills.html"
+            )
+            all_skills_data = PeriodSummary._collect_all_skills_data(
+                chunk_data,
+                selected_files
+            )
+            HtmlHelper.generate_all_skills_html(
+                all_skills_filepath,
+                all_skills_data['skill_rows'],
+                period_end_str,
+                days_covered
+            )
+            print(f"✅ All skills summary generated: {all_skills_filepath}")
 
     @staticmethod
     def _select_estimation_data(vacancy_data):
@@ -229,7 +266,7 @@ class PeriodSummary:
             if span_length <= 0:
                 continue
             language_totals[iso_code] = (
-                language_totals.get(iso_code, 0) + span_length
+                    language_totals.get(iso_code, 0) + span_length
             )
             if iso_code not in language_display_names:
                 raw_name = candidate.language.name.lower()
@@ -254,7 +291,7 @@ class PeriodSummary:
         skill_counts = {}
         print(f'collecting missing skills')
         for nf, v in enumerate(selected_files):
-            if nf % 20 == 0:
+            if nf % 200 == 0:
                 print(f'{nf:<6} of {len(selected_files)} files processes')
             vid = v['vacancy_id']
             data = chunk_data.get(vid)
@@ -304,6 +341,52 @@ class PeriodSummary:
         return {
             'skill_rows': skill_rows,
             'required_language_rows': []
+        }
+
+    @staticmethod
+    def _collect_all_skills_data(chunk_data, selected_files):
+        skill_counts = {}
+        print(f'collecting all skills')
+        for nf, v in enumerate(selected_files):
+            if nf % 200 == 0:
+                print(f'{nf:<6} of {len(selected_files)} files processes')
+            vid = v['vacancy_id']
+            data = chunk_data.get(vid)
+            if not data:
+                continue
+            estimation_data = PeriodSummary._select_estimation_data(data)
+            if estimation_data is None:
+                estimation_data = {}
+            protocol = estimation_data.get('scoring_protocol') or []
+            seen_skills = set()
+            for entry in protocol:
+                left_field = entry.get('left_field', '')
+                if left_field not in ['expert', 'required', 'nice-to-have']:
+                    continue
+                skill = str(entry.get('left') or '').strip()
+                if not skill:
+                    continue
+                key = skill.lower()
+                if key in seen_skills:
+                    continue
+                seen_skills.add(key)
+                if key not in skill_counts:
+                    skill_counts[key] = {
+                        'skill': skill,
+                        'count': 0
+                    }
+                skill_counts[key]['count'] += 1
+        skill_rows = []
+        for item in skill_counts.values():
+            skill_rows.append({
+                'skill': item['skill'],
+                'count': item['count']
+            })
+        skill_rows.sort(
+            key=lambda row: (-row['count'], row['skill'].lower())
+        )
+        return {
+            'skill_rows': skill_rows
         }
 
     @staticmethod
@@ -379,8 +462,8 @@ class PeriodSummary:
             if eur_max is not None:
                 total_eur_max += eur_max
             country_val = (
-                json_data.get('CandidateCountry')
-                or json_data.get('EmployerCountry')
+                    json_data.get('CandidateCountry')
+                    or json_data.get('EmployerCountry')
             )
             raw_str = ChunkHelper._extract_country_str(country_val)
             countries_for_row = []

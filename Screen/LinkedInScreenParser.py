@@ -119,8 +119,10 @@ class LinkedInScreenParser(ScreenParser):
             label = f"{el_type}: {content}" if content else el_type
             self._draw_single_bbox(draw, el.get('bbox', []), label, font, new_width, new_height, outline_color="red")
         for pair in self._close_pairs:
-            draw_blue_element(pair['close_button'], "Close")
-            draw_blue_element(pair['left_button'], "Left")
+            if 'close_button' in pair:
+                draw_blue_element(pair['close_button'], "Close")
+            if 'left_button' in pair:
+                draw_blue_element(pair['left_button'], "Left")
         for next_el in self._next_buttons:
             draw_blue_element(next_el, "Next")
         for li_el in self._linkedin_buttons:
