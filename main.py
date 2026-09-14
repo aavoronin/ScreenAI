@@ -66,8 +66,11 @@ if __name__ == "__main__":
                 generate_all_skills=(d == MAX_d)
             )
 
+    omit_estimate = False
     for nv in [nv1, nv2]:
         for _ in range(10):
+            if omit_estimate:
+                continue
             n = nv.AI_estimate_collected()
             if n == 0:
                 break
@@ -80,6 +83,8 @@ if __name__ == "__main__":
     while True:
         for nv in [nv1, nv1, nv2]:
             for _ in range(0):
+                if omit_estimate:
+                    continue
                 n = nv.AI_estimate_collected()
                 if n == 0:
                     break
@@ -87,6 +92,8 @@ if __name__ == "__main__":
             nv.run_on_urls(1)
         for i in range(4):
             for nv in [nv1, nv2]:
+                if omit_estimate:
+                    continue
                 n = nv.AI_estimate_collected()
                 if n == 0:
                     break

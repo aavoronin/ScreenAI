@@ -203,7 +203,7 @@ class LinkedInNavigator(BaseNavigator):
                 close_button_clicks += 1
 
                 # Wait 5 sec
-                time.sleep(5)
+                time.sleep(10)
 
                 pyautogui.hotkey('ctrl', 'l')
                 # Wait for Chrome to gain focus
