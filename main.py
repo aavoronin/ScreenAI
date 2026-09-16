@@ -48,9 +48,9 @@ if __name__ == "__main__":
             if n == 0:
                 break
 
-    MAX_d = 14 * 4
+    MAX_d = 14 * 8
     if True:
-        for d in [MAX_d, 14, 7, 5, 3, 1]:
+        for d in [MAX_d, 14 * 2, 14, 7, 5, 3, 2, 1]:
             # Generate period summary for the last 14 days
             period_end = datetime.now()
             period_start = period_end - timedelta(days=d)

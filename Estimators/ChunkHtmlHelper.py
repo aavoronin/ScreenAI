@@ -790,7 +790,9 @@ document.addEventListener('click', function(event) {
         )
 
         row_html_parts = []
-        for row in vacancy_rows:
+        for row_i, row in enumerate(vacancy_rows):
+            if row_i % 1000 == 1000 - 1:
+                print(f"generating rows: {row_i}")
             # Extract country separately
             json_data = row.get('estimation_data', {}).get('json', {})
             country_val = json_data.get('CandidateCountry') or json_data.get('EmployerCountry')
