@@ -7,6 +7,7 @@ from Estimators.ExchangeRates import ExchangeRates
 
 
 class ChunkHtmlHelper:
+
     @staticmethod
     def _parse_time_ago_from_text(vacancy_text):
         """
@@ -17,7 +18,6 @@ class ChunkHtmlHelper:
         - "1 month ago"
         - "10 hours ago"
         - "posted 1 year ago"
-
         Returns tuple: (timedelta, is_reposted)
         - timedelta: time period to subtract
         - is_reposted: True if text contained "reposted", False otherwise
@@ -67,7 +67,6 @@ class ChunkHtmlHelper:
         """
         Calculate the publication date by parsing time ago from vacancy text
         and subtracting it from saved_date.
-
         Returns tuple: (date_string, is_reposted)
         - date_string: formatted date (YYYY-MM-DD)
         - is_reposted: True if the text had "reposted" prefix
@@ -87,8 +86,9 @@ class ChunkHtmlHelper:
                 saved_date = saved_date_str
 
             # Parse time ago from vacancy text
-            time_delta_info = ChunkHtmlHelper._parse_time_ago_from_text(vacancy_text)
-
+            time_delta_info = ChunkHtmlHelper._parse_time_ago_from_text(
+                vacancy_text
+            )
             if time_delta_info:
                 time_delta, is_reposted = time_delta_info
                 publication_date = saved_date - time_delta
@@ -102,7 +102,9 @@ class ChunkHtmlHelper:
             return "", False
 
     @staticmethod
-    def _format_salary_display(sal_min, sal_max, sal_curr, sal_period, exchange_rates_df):
+    def _format_salary_display(
+        sal_min, sal_max, sal_curr, sal_period, exchange_rates_df
+    ):
         """
         Format salary display.
         Line 1: Original values and period (e.g., per month, per hour).
@@ -114,7 +116,6 @@ class ChunkHtmlHelper:
 
         min_val = ChunkHelper._parse_salary_value(sal_min)
         max_val = ChunkHelper._parse_salary_value(sal_max)
-
         if min_val is None and max_val is None:
             return ""
 
@@ -143,14 +144,22 @@ class ChunkHtmlHelper:
         ann_max = ChunkHelper._convert_to_annual(max_val, period)
 
         # Line 2: Convert to per year in USD
-        usd_min = ChunkHelper._convert_currency(ann_min, curr, 'USD', exchange_rates_df)
-        usd_max = ChunkHelper._convert_currency(ann_max, curr, 'USD', exchange_rates_df)
+        usd_min = ChunkHelper._convert_currency(
+            ann_min, curr, 'USD', exchange_rates_df
+        )
+        usd_max = ChunkHelper._convert_currency(
+            ann_max, curr, 'USD', exchange_rates_df
+        )
         if usd_min is not None or usd_max is not None:
             lines.append(format_range(usd_min, usd_max, 'USD', 'year'))
 
         # Line 3: Convert to per year in EUR
-        eur_min = ChunkHelper._convert_currency(ann_min, curr, 'EUR', exchange_rates_df)
-        eur_max = ChunkHelper._convert_currency(ann_max, curr, 'EUR', exchange_rates_df)
+        eur_min = ChunkHelper._convert_currency(
+            ann_min, curr, 'EUR', exchange_rates_df
+        )
+        eur_max = ChunkHelper._convert_currency(
+            ann_max, curr, 'EUR', exchange_rates_df
+        )
         if eur_min is not None or eur_max is not None:
             lines.append(format_range(eur_min, eur_max, 'EUR', 'year'))
 
@@ -160,10 +169,15 @@ class ChunkHtmlHelper:
     def _calculate_salary_stats(vacancy_rows, exchange_rates_df):
         """
         Calculate qualified salaries for average calculation.
-        Returns a list of dictionaries containing salary data and associated countries.
+        Returns a list of dictionaries containing salary data and
+        associated countries.
+        When a vacancy belongs to multiple countries, its salary and
+        count are divided equally among those countries.
         """
         qualified_salaries = []
-        synonym_map, valid_canonical_names = ChunkHelper._build_country_synonym_map()
+        synonym_map, valid_canonical_names = (
+            ChunkHelper._build_country_synonym_map()
+        )
 
         for idx, row in enumerate(vacancy_rows):
             json_data = row.get('estimation_data', {}).get('json', {})
@@ -177,32 +191,39 @@ class ChunkHtmlHelper:
 
             min_val = ChunkHelper._parse_salary_value(sal_min)
             max_val = ChunkHelper._parse_salary_value(sal_max)
-
             if min_val is None or max_val is None:
                 continue
 
             ann_min = ChunkHelper._convert_to_annual(min_val, sal_period)
             ann_max = ChunkHelper._convert_to_annual(max_val, sal_period)
-
             if ann_min is None or ann_max is None:
                 continue
 
             curr = sal_curr.upper().strip()
-            usd_min = ChunkHelper._convert_currency(ann_min, curr, 'USD', exchange_rates_df)
-            usd_max = ChunkHelper._convert_currency(ann_max, curr, 'USD', exchange_rates_df)
-
+            usd_min = ChunkHelper._convert_currency(
+                ann_min, curr, 'USD', exchange_rates_df
+            )
+            usd_max = ChunkHelper._convert_currency(
+                ann_max, curr, 'USD', exchange_rates_df
+            )
             if usd_min is None or usd_max is None:
                 continue
 
             # Filter: min >= 15000 and max < 300000
             if usd_min >= 15000 and usd_max < 300000:
-                eur_min = ChunkHelper._convert_currency(ann_min, curr, 'EUR', exchange_rates_df)
-                eur_max = ChunkHelper._convert_currency(ann_max, curr, 'EUR', exchange_rates_df)
+                eur_min = ChunkHelper._convert_currency(
+                    ann_min, curr, 'EUR', exchange_rates_df
+                )
+                eur_max = ChunkHelper._convert_currency(
+                    ann_max, curr, 'EUR', exchange_rates_df
+                )
 
-                country_val = json_data.get('CandidateCountry') or json_data.get('EmployerCountry')
+                country_val = (
+                    json_data.get('CandidateCountry')
+                    or json_data.get('EmployerCountry')
+                )
                 raw_str = ChunkHelper._extract_country_str(country_val)
                 row_countries = []
-
                 if raw_str:
                     for c in raw_str.split(','):
                         c = c.strip()
@@ -213,22 +234,51 @@ class ChunkHtmlHelper:
                             if canonical not in row_countries:
                                 row_countries.append(canonical)
 
-                qualified_salaries.append({
-                    'rowId': idx,
-                    'usdMin': usd_min,
-                    'usdMax': usd_max,
-                    'eurMin': eur_min if eur_min is not None else 0,
-                    'eurMax': eur_max if eur_max is not None else 0,
-                    'countries': row_countries
-                })
+                # Divide salary and count equally across countries
+                num_countries = (
+                    len(row_countries) if row_countries else 1
+                )
+                fraction = 1.0 / num_countries
+                eur_min_val = (
+                    eur_min if eur_min is not None else 0
+                )
+                eur_max_val = (
+                    eur_max if eur_max is not None else 0
+                )
+
+                if row_countries:
+                    for country in row_countries:
+                        qualified_salaries.append({
+                            'rowId': idx,
+                            'usdMin': usd_min * fraction,
+                            'usdMax': usd_max * fraction,
+                            'eurMin': eur_min_val * fraction,
+                            'eurMax': eur_max_val * fraction,
+                            'countries': [country],
+                            'fraction': fraction
+                        })
+                else:
+                    qualified_salaries.append({
+                        'rowId': idx,
+                        'usdMin': usd_min,
+                        'usdMax': usd_max,
+                        'eurMin': eur_min_val,
+                        'eurMax': eur_max_val,
+                        'countries': [],
+                        'fraction': 1.0
+                    })
 
         return qualified_salaries
 
     @staticmethod
-    def create_html_summary(chunk_filepath, chunk_data, selected_files, chunks_dir, generate_country_files=True):
+    def create_html_summary(
+        chunk_filepath, chunk_data, selected_files, chunks_dir,
+        generate_country_files=True
+    ):
         """
         Create an MHTML file with a summary table of vacancies.
-        Also creates per-country summary files if generate_country_files is True.
+        Also creates per-country summary files if
+        generate_country_files is True.
         """
         # Create MHTML filename (same as chunk but with .html extension)
         html_filepath = os.path.splitext(chunk_filepath)[0] + '.html'
@@ -242,12 +292,12 @@ class ChunkHtmlHelper:
             vid = v['vacancy_id']
             if vid not in chunk_data:
                 continue
-
             vacancy_data = chunk_data[vid]
             est2 = vacancy_data.get('estimation2', {})
             est1 = vacancy_data.get('estimation1', {})
 
-            # Level 2 takes priority, but if model_id is null, it's considered missing.
+            # Level 2 takes priority, but if model_id is null,
+            # it's considered missing.
             if est2.get('model_id') is not None:
                 score = est2.get('score', 0)
                 score_percentile = est2.get('score_percentile', 0.0)
@@ -264,18 +314,28 @@ class ChunkHtmlHelper:
             # Extract URLs, prioritizing estimation2 over estimation1
             est2_json = est2.get('json') or {}
             est1_json = est1.get('json') or {}
-            vacancy_url = est2_json.get('VacancyURL') or est1_json.get('VacancyURL')
-            apply_url = est2_json.get('ApplyURL') or est1_json.get('ApplyURL')
+            vacancy_url = (
+                est2_json.get('VacancyURL')
+                or est1_json.get('VacancyURL')
+            )
+            apply_url = (
+                est2_json.get('ApplyURL')
+                or est1_json.get('ApplyURL')
+            )
 
             if not vacancy_url:
                 if "LinkedIn" in v['json_path']:
-                    vacancy_url = f"https://www.linkedin.com/jobs/view/{vid}/"
+                    vacancy_url = (
+                        f"https://www.linkedin.com/jobs/view/{vid}/"
+                    )
                 elif "Hirify" in v['json_path']:
                     vacancy_url = f"https://hirify.me/jobs/{vid}"
 
             if not apply_url:
                 if "LinkedIn" in v['json_path']:
-                    apply_url = f"https://www.linkedin.com/jobs/view/{vid}/"
+                    apply_url = (
+                        f"https://www.linkedin.com/jobs/view/{vid}/"
+                    )
                 elif "Hirify" in v['json_path']:
                     apply_url = f"https://hirify.me/jobs/{vid}"
 
@@ -295,15 +355,19 @@ class ChunkHtmlHelper:
             vacancy_text = ""
             if os.path.exists(txt_path):
                 try:
-                    with open(txt_path, 'r', encoding='utf-8') as f:
+                    with open(
+                        txt_path, 'r', encoding='utf-8'
+                    ) as f:
                         vacancy_text = f.read()
                 except:
                     vacancy_text = "Could not load text"
 
             # Calculate publication date
             saved_date_str = vacancy_data.get('saved_date', '')
-            publication_date, is_reposted = ChunkHtmlHelper._calculate_publication_date(
-                saved_date_str, vacancy_text
+            publication_date, is_reposted = (
+                ChunkHtmlHelper._calculate_publication_date(
+                    saved_date_str, vacancy_text
+                )
             )
 
             vacancy_rows.append({
@@ -323,27 +387,37 @@ class ChunkHtmlHelper:
             })
 
         # Sort by Score * abs(score_percentile) descending
-        vacancy_rows.sort(key=lambda x: -(x['score'] * abs(x['score_percentile'])))
+        vacancy_rows.sort(
+            key=lambda x: -(x['score'] * abs(x['score_percentile']))
+        )
 
         # Generate main HTML
-        html_content = ChunkHtmlHelper._generate_html_table(vacancy_rows, exchange_rates_df, stats_title="Global")
+        html_content = ChunkHtmlHelper._generate_html_table(
+            vacancy_rows, exchange_rates_df, stats_title="Global"
+        )
 
         # Save main file
         with open(html_filepath, 'w', encoding='utf-8') as f:
             f.write(html_content)
-
         print(f"✅ Created MHTML summary: {html_filepath}")
 
         if generate_country_files:
             # Generate per-country summary files
-            synonym_map, valid_canonical_names = ChunkHelper._build_country_synonym_map()
+            synonym_map, valid_canonical_names = (
+                ChunkHelper._build_country_synonym_map()
+            )
             country_to_rows = {}
-
             for row in vacancy_rows:
-                json_data = row.get('estimation_data', {}).get('json', {})
-                country_val = json_data.get('CandidateCountry') or json_data.get('EmployerCountry')
-                raw_str = ChunkHelper._extract_country_str(country_val)
-
+                json_data = row.get(
+                    'estimation_data', {}
+                ).get('json', {})
+                country_val = (
+                    json_data.get('CandidateCountry')
+                    or json_data.get('EmployerCountry')
+                )
+                raw_str = ChunkHelper._extract_country_str(
+                    country_val
+                )
                 if raw_str:
                     for c in raw_str.split(','):
                         c = c.strip()
@@ -357,32 +431,66 @@ class ChunkHtmlHelper:
 
             # Extract date range from filename for country file naming
             basename = os.path.basename(html_filepath)
-            date_part = basename.replace("vacancies_", "").replace(".html", "")
+            date_part = (
+                basename.replace("vacancies_", "")
+                .replace(".html", "")
+            )
             output_dir = os.path.dirname(html_filepath)
 
             for country, country_rows in country_to_rows.items():
-                country_filename = f"vacancies_{date_part}_{country}.html"
-                country_filepath = os.path.join(output_dir, country_filename)
-                country_html = ChunkHtmlHelper._generate_html_table(country_rows, exchange_rates_df,
-                                                                    stats_title=country)
-                with open(country_filepath, 'w', encoding='utf-8') as f:
+                country_filename = (
+                    f"vacancies_{date_part}_{country}.html"
+                )
+                country_filepath = os.path.join(
+                    output_dir, country_filename
+                )
+                country_html = (
+                    ChunkHtmlHelper._generate_html_table(
+                        country_rows, exchange_rates_df,
+                        stats_title=country
+                    )
+                )
+                with open(
+                    country_filepath, 'w', encoding='utf-8'
+                ) as f:
                     f.write(country_html)
-                print(f"✅ Created country summary: {country_filepath}")
+                print(
+                    f"✅ Created country summary: "
+                    f"{country_filepath}"
+                )
 
     @staticmethod
-    def _generate_html_table(vacancy_rows, exchange_rates_df, stats_title="Global"):
+    def _generate_html_table(
+        vacancy_rows, exchange_rates_df, stats_title="Global"
+    ):
         """Generate HTML table with collapsible sections and country filter."""
-        synonym_map, valid_canonical_names = ChunkHelper._build_country_synonym_map()
+        synonym_map, valid_canonical_names = (
+            ChunkHelper._build_country_synonym_map()
+        )
 
         # Calculate salary statistics and get qualified salaries
-        qualified_salaries = ChunkHtmlHelper._calculate_salary_stats(vacancy_rows, exchange_rates_df)
-
-        count = len(qualified_salaries)
-        sum_usd_min = sum(q['usdMin'] for q in qualified_salaries)
-        sum_usd_max = sum(q['usdMax'] for q in qualified_salaries)
-        sum_eur_min = sum(q['eurMin'] for q in qualified_salaries)
-        sum_eur_max = sum(q['eurMax'] for q in qualified_salaries)
-
+        qualified_salaries = (
+            ChunkHtmlHelper._calculate_salary_stats(
+                vacancy_rows, exchange_rates_df
+            )
+        )
+        # Use fractional count so multi-country vacancies
+        # contribute proportionally
+        count = sum(
+            q.get('fraction', 1.0) for q in qualified_salaries
+        )
+        sum_usd_min = sum(
+            q['usdMin'] for q in qualified_salaries
+        )
+        sum_usd_max = sum(
+            q['usdMax'] for q in qualified_salaries
+        )
+        sum_eur_min = sum(
+            q['eurMin'] for q in qualified_salaries
+        )
+        sum_eur_max = sum(
+            q['eurMax'] for q in qualified_salaries
+        )
         avg_usd_min = sum_usd_min / count if count > 0 else 0
         avg_usd_max = sum_usd_max / count if count > 0 else 0
         avg_eur_min = sum_eur_min / count if count > 0 else 0
@@ -393,20 +501,42 @@ class ChunkHtmlHelper:
 <h3 style="margin-top: 0; color: #2196F3;">Salary Statistics ({stats_title})</h3>
 """
         if count == 0:
-            stats_html += '<p style="margin: 5px 0;"><strong>No data</strong></p>\n'
+            stats_html += (
+                '<p style="margin: 5px 0;">'
+                '<strong>No data</strong></p>\n'
+            )
         else:
-            stats_html += f"""<p style="margin: 5px 0;"><strong>Vacancies in range (15k - 300k USD/year):</strong> {count}</p>
-<p style="margin: 5px 0;"><strong>Avg USD Min:</strong> ${avg_usd_min:,.0f} | <strong>Avg USD Max:</strong> ${avg_usd_max:,.0f}</p>
-<p style="margin: 5px 0;"><strong>Avg EUR Min:</strong> €{avg_eur_min:,.0f} | <strong>Avg EUR Max:</strong> €{avg_eur_max:,.0f}</p>
-"""
+            stats_html += (
+                f'<p style="margin: 5px 0;">'
+                f'<strong>Vacancies in range '
+                f'(15k - 300k USD/year):</strong> '
+                f'{count:.1f}</p>\n'
+                f'<p style="margin: 5px 0;">'
+                f'<strong>Avg USD Min:</strong> '
+                f'${avg_usd_min:,.0f} | '
+                f'<strong>Avg USD Max:</strong> '
+                f'${avg_usd_max:,.0f}</p>\n'
+                f'<p style="margin: 5px 0;">'
+                f'<strong>Avg EUR Min:</strong> '
+                f'€{avg_eur_min:,.0f} | '
+                f'<strong>Avg EUR Max:</strong> '
+                f'€{avg_eur_max:,.0f}</p>\n'
+            )
         stats_html += "</div>\n"
 
         # Collect distinct countries for filter
         distinct_countries = set()
         for row in vacancy_rows:
-            json_data = row.get('estimation_data', {}).get('json', {})
-            country_val = json_data.get('CandidateCountry') or json_data.get('EmployerCountry')
-            raw_str = ChunkHelper._extract_country_str(country_val)
+            json_data = row.get(
+                'estimation_data', {}
+            ).get('json', {})
+            country_val = (
+                json_data.get('CandidateCountry')
+                or json_data.get('EmployerCountry')
+            )
+            raw_str = ChunkHelper._extract_country_str(
+                country_val
+            )
             if raw_str:
                 for c in raw_str.split(','):
                     c = c.strip()
@@ -417,7 +547,10 @@ class ChunkHtmlHelper:
                         distinct_countries.add(canonical)
 
         sorted_countries = sorted(list(distinct_countries))
-        escaped_stats_title = stats_title.replace('"', '\\"').replace("'", "\\'")
+        escaped_stats_title = (
+            stats_title.replace('"', '\\"')
+            .replace("'", "\\'")
+        )
         qualified_salaries_json = json.dumps(qualified_salaries)
 
         html_parts = ["""<!DOCTYPE html>
@@ -605,10 +738,13 @@ function toggleSection(btn) {
 
 function recalculateSalary(selectedCountries) {
     var count = 0;
-    var sumUsdMin = 0, sumUsdMax = 0, sumEurMin = 0, sumEurMax = 0;
-
-    var checkboxes = document.querySelectorAll('#countryDropdown input[type="checkbox"][data-country]');
-    var useAll = selectedCountries.length === 0 || selectedCountries.length === checkboxes.length;
+    var sumUsdMin = 0, sumUsdMax = 0;
+    var sumEurMin = 0, sumEurMax = 0;
+    var checkboxes = document.querySelectorAll(
+        '#countryDropdown input[type="checkbox"][data-country]'
+    );
+    var useAll = selectedCountries.length === 0
+        || selectedCountries.length === checkboxes.length;
 
     qualifiedSalaries.forEach(function(q) {
         var match = false;
@@ -616,15 +752,16 @@ function recalculateSalary(selectedCountries) {
             match = true;
         } else {
             for (var i = 0; i < selectedCountries.length; i++) {
-                if (q.countries.indexOf(selectedCountries[i]) !== -1) {
+                if (q.countries.indexOf(
+                    selectedCountries[i]
+                ) !== -1) {
                     match = true;
                     break;
                 }
             }
         }
-
         if (match) {
-            count++;
+            count += (q.fraction || 1.0);
             sumUsdMin += q.usdMin;
             sumUsdMax += q.usdMax;
             sumEurMin += q.eurMin;
@@ -633,33 +770,48 @@ function recalculateSalary(selectedCountries) {
     });
 
     var statsDiv = document.getElementById('salaryStatsBlock');
-    var html = '<h3 style="margin-top: 0; color: #2196F3;">Salary Statistics (' + currentStatsTitle + ')</h3>';
-
+    var html = '<h3 style="margin-top: 0; color: #2196F3;">'
+        + 'Salary Statistics (' + currentStatsTitle + ')</h3>';
     if (count === 0) {
-        html += '<p style="margin: 5px 0;"><strong>No data</strong></p>';
+        html += '<p style="margin: 5px 0;">'
+            + '<strong>No data</strong></p>';
     } else {
         var avgUsdMin = sumUsdMin / count;
         var avgUsdMax = sumUsdMax / count;
         var avgEurMin = sumEurMin / count;
         var avgEurMax = sumEurMax / count;
-
-        html += '<p style="margin: 5px 0;"><strong>Vacancies in range (15k - 300k USD/year):</strong> ' + count + '</p>';
-        html += '<p style="margin: 5px 0;"><strong>Avg USD Min:</strong> $' + avgUsdMin.toLocaleString('en-US', {maximumFractionDigits: 0}) +
-            ' | <strong>Avg USD Max:</strong> $' + avgUsdMax.toLocaleString('en-US', {maximumFractionDigits: 0}) + '</p>';
-        html += '<p style="margin: 5px 0;"><strong>Avg EUR Min:</strong> €' + avgEurMin.toLocaleString('en-US', {maximumFractionDigits: 0}) +
-            ' | <strong>Avg EUR Max:</strong> €' + avgEurMax.toLocaleString('en-US', {maximumFractionDigits: 0}) + '</p>';
+        html += '<p style="margin: 5px 0;">'
+            + '<strong>Vacancies in range '
+            + '(15k - 300k USD/year):</strong> '
+            + count.toFixed(1) + '</p>';
+        html += '<p style="margin: 5px 0;">'
+            + '<strong>Avg USD Min:</strong> $'
+            + avgUsdMin.toLocaleString('en-US',
+                {maximumFractionDigits: 0})
+            + ' | <strong>Avg USD Max:</strong> $'
+            + avgUsdMax.toLocaleString('en-US',
+                {maximumFractionDigits: 0}) + '</p>';
+        html += '<p style="margin: 5px 0;">'
+            + '<strong>Avg EUR Min:</strong> €'
+            + avgEurMin.toLocaleString('en-US',
+                {maximumFractionDigits: 0})
+            + ' | <strong>Avg EUR Max:</strong> €'
+            + avgEurMax.toLocaleString('en-US',
+                {maximumFractionDigits: 0}) + '</p>';
     }
-
     statsDiv.innerHTML = html;
 }
 
 function toggleCountryDropdown() {
     var dropdown = document.getElementById('countryDropdown');
-    dropdown.style.display = dropdown.style.display === 'block' ? 'none' : 'block';
+    dropdown.style.display =
+        dropdown.style.display === 'block' ? 'none' : 'block';
 }
 
 function selectAllCountries() {
-    var checkboxes = document.querySelectorAll('#countryDropdown input[type="checkbox"]');
+    var checkboxes = document.querySelectorAll(
+        '#countryDropdown input[type="checkbox"]'
+    );
     checkboxes.forEach(function(cb) {
         cb.checked = true;
     });
@@ -667,7 +819,9 @@ function selectAllCountries() {
 }
 
 function deselectAllCountries() {
-    var checkboxes = document.querySelectorAll('#countryDropdown input[type="checkbox"]');
+    var checkboxes = document.querySelectorAll(
+        '#countryDropdown input[type="checkbox"]'
+    );
     checkboxes.forEach(function(cb) {
         cb.checked = false;
     });
@@ -675,9 +829,10 @@ function deselectAllCountries() {
 }
 
 function filterByCountry() {
-    var checkboxes = document.querySelectorAll('#countryDropdown input[type="checkbox"][data-country]');
+    var checkboxes = document.querySelectorAll(
+        '#countryDropdown input[type="checkbox"][data-country]'
+    );
     var selected = [];
-
     checkboxes.forEach(function(cb) {
         if (cb.checked) {
             selected.push(cb.getAttribute('data-country'));
@@ -686,8 +841,10 @@ function filterByCountry() {
 
     // Update label
     var label = document.getElementById('countryFilterLabel');
-    if (selected.length === 0 || selected.length === checkboxes.length) {
-        label.textContent = 'All Countries (' + checkboxes.length + ')';
+    if (selected.length === 0
+        || selected.length === checkboxes.length) {
+        label.textContent = 'All Countries ('
+            + checkboxes.length + ')';
     } else {
         label.textContent = selected.join(', ');
     }
@@ -698,27 +855,33 @@ function filterByCountry() {
         var rowCountries = row.getAttribute('data-countries');
         var nextRow = row.nextElementSibling;
         var show = false;
-
-        if (selected.length === 0 || selected.length === checkboxes.length) {
+        if (selected.length === 0
+            || selected.length === checkboxes.length) {
             show = true;
         } else {
-            var rowCountryList = rowCountries ? rowCountries.split('|') : [];
+            var rowCountryList = rowCountries
+                ? rowCountries.split('|') : [];
             for (var i = 0; i < selected.length; i++) {
-                if (rowCountryList.indexOf(selected[i]) !== -1) {
+                if (rowCountryList.indexOf(
+                    selected[i]
+                ) !== -1) {
                     show = true;
                     break;
                 }
             }
         }
-
         if (show) {
             row.style.display = '';
-            if (nextRow && nextRow.classList.contains('collapsible-section')) {
+            if (nextRow
+                && nextRow.classList.contains(
+                    'collapsible-section')) {
                 nextRow.style.display = '';
             }
         } else {
             row.style.display = 'none';
-            if (nextRow && nextRow.classList.contains('collapsible-section')) {
+            if (nextRow
+                && nextRow.classList.contains(
+                    'collapsible-section')) {
                 nextRow.style.display = 'none';
                 nextRow.classList.remove('show');
             }
@@ -730,7 +893,9 @@ function filterByCountry() {
 
 // Close dropdown when clicking outside
 document.addEventListener('click', function(event) {
-    var container = document.querySelector('.country-filter-container');
+    var container = document.querySelector(
+        '.country-filter-container'
+    );
     if (container && !container.contains(event.target)) {
         var dropdown = document.getElementById('countryDropdown');
         if (dropdown) {
@@ -747,24 +912,36 @@ document.addEventListener('click', function(event) {
         # Insert stats block
         html_parts.append(stats_html)
 
-        # Country filter dropdown with Check All/Uncheck All at the top
+        # Country filter dropdown with Check All/Uncheck All
         html_parts.append(
             '<div class="country-filter-container">\n'
-            '    <button class="country-filter-btn" onclick="toggleCountryDropdown()">\n'
-            f'        <span id="countryFilterLabel">All Countries ({len(sorted_countries)})</span> ▼\n'
+            '    <button class="country-filter-btn" '
+            'onclick="toggleCountryDropdown()">\n'
+            f'        <span id="countryFilterLabel">'
+            f'All Countries ({len(sorted_countries)})'
+            f'</span> ▼\n'
             '    </button>\n'
-            '    <div id="countryDropdown" class="country-dropdown">\n'
+            '    <div id="countryDropdown" '
+            'class="country-dropdown">\n'
             '        <div class="filter-actions">\n'
-            '            <button onclick="selectAllCountries()">Check All</button>\n'
-            '            <button onclick="deselectAllCountries()">Uncheck All</button>\n'
+            '            <button '
+            'onclick="selectAllCountries()">Check All</button>\n'
+            '            <button '
+            'onclick="deselectAllCountries()">Uncheck All</button>\n'
             '        </div>\n'
         )
 
         for country in sorted_countries:
-            escaped_country = country.replace('"', '&quot;').replace("'", '&#39;')
+            escaped_country = (
+                country.replace('"', '&quot;')
+                .replace("'", '&#39;')
+            )
             html_parts.append(
-                f'        <label><input type="checkbox" data-country="{escaped_country}" '
-                f'checked onchange="filterByCountry()"> {country}</label>\n'
+                f'        <label>'
+                f'<input type="checkbox" '
+                f'data-country="{escaped_country}" '
+                f'checked onchange="filterByCountry()"> '
+                f'{country}</label>\n'
             )
 
         html_parts.append(
@@ -793,11 +970,18 @@ document.addEventListener('click', function(event) {
         for row_i, row in enumerate(vacancy_rows):
             if row_i % 1000 == 1000 - 1:
                 print(f"generating rows: {row_i}")
-            # Extract country separately
-            json_data = row.get('estimation_data', {}).get('json', {})
-            country_val = json_data.get('CandidateCountry') or json_data.get('EmployerCountry')
-            raw_str = ChunkHelper._extract_country_str(country_val)
 
+            # Extract country separately
+            json_data = row.get(
+                'estimation_data', {}
+            ).get('json', {})
+            country_val = (
+                json_data.get('CandidateCountry')
+                or json_data.get('EmployerCountry')
+            )
+            raw_str = ChunkHelper._extract_country_str(
+                country_val
+            )
             mapped_countries = []
             if raw_str:
                 for c in raw_str.split(','):
@@ -808,10 +992,9 @@ document.addEventListener('click', function(event) {
                     if canonical.lower() in valid_canonical_names:
                         if canonical not in mapped_countries:
                             mapped_countries.append(canonical)
-
             country_str = ", ".join(mapped_countries)
 
-            # Build data-countries attribute for filtering (pipe-separated)
+            # Build data-countries attribute for filtering
             data_countries = '|'.join(mapped_countries)
 
             # Title without country
@@ -820,9 +1003,10 @@ document.addEventListener('click', function(event) {
             extras = []
             if emp_type:
                 extras.append(str(emp_type).strip())
-
             if extras:
-                display_title = f"{title} ({', '.join(extras)})"
+                display_title = (
+                    f"{title} ({', '.join(extras)})"
+                )
             else:
                 display_title = title
 
@@ -831,7 +1015,9 @@ document.addEventListener('click', function(event) {
             is_reposted = row.get('is_reposted', False)
             if publication_date:
                 if is_reposted:
-                    date_display = f"reposted {publication_date}"
+                    date_display = (
+                        f"reposted {publication_date}"
+                    )
                 else:
                     date_display = publication_date
             else:
@@ -842,25 +1028,41 @@ document.addEventListener('click', function(event) {
             sal_max = json_data.get('SalaryMax', '')
             sal_curr = json_data.get('SalaryCurrency', '')
             sal_period = json_data.get('SalaryPeriod', '')
-            salary_html = ChunkHtmlHelper._format_salary_display(
-                sal_min, sal_max, sal_curr, sal_period, exchange_rates_df
+            salary_html = (
+                ChunkHtmlHelper._format_salary_display(
+                    sal_min, sal_max, sal_curr, sal_period,
+                    exchange_rates_df
+                )
             )
 
             # Main row
-            score_str = f"{row['score']:.2f}".rstrip('0').rstrip('.')
-            score_percentile_str = f"{row['score_percentile']:.2f}".rstrip('0').rstrip('.')
-            escaped_data_countries = data_countries.replace('"', '&quot;')
+            score_str = (
+                f"{row['score']:.2f}"
+                .rstrip('0').rstrip('.')
+            )
+            score_percentile_str = (
+                f"{row['score_percentile']:.2f}"
+                .rstrip('0').rstrip('.')
+            )
+            escaped_data_countries = (
+                data_countries.replace('"', '&quot;')
+            )
 
             row_html = (
-                f'            <tr class="main-row" data-countries="{escaped_data_countries}">\n'
+                f'            <tr class="main-row" '
+                f'data-countries="{escaped_data_countries}">\n'
                 f'                <td>{country_str}</td>\n'
                 f'                <td>{display_title}</td>\n'
                 f'                <td>{date_display}</td>\n'
                 f'                <td>{score_str}</td>\n'
-                f'                <td>{score_percentile_str}</td>\n'
-                f'                <td>{row["vacancy_id"]}</td>\n'
-                f'                <td style="font-size: 11px; line-height: 1.4;">{salary_html}</td>\n'
-                '                <td><button class="collapse-btn" onclick="toggleSection(this)">[+]</button></td>\n'
+                f'                <td>'
+                f'{score_percentile_str}</td>\n'
+                f'                <td>'
+                f'{row["vacancy_id"]}</td>\n'
+                f'                <td style="font-size: 11px; '
+                f'line-height: 1.4;">{salary_html}</td>\n'
+                '                <td><button class="collapse-btn" '
+                'onclick="toggleSection(this)">[+]</button></td>\n'
                 '            </tr>\n'
             )
 
@@ -873,59 +1075,85 @@ document.addEventListener('click', function(event) {
             # Nested table with skills comparison
             estimation_data = row.get('estimation_data', {})
             if estimation_data:
-                protocol = estimation_data.get('scoring_protocol', [])
+                protocol = estimation_data.get(
+                    'scoring_protocol', []
+                )
                 if protocol:
                     row_html += (
-                        '                    <h3>Skills Comparison</h3>\n'
-                        '                    <table class="nested-table">\n'
+                        '                    <h3>'
+                        'Skills Comparison</h3>\n'
+                        '                    <table '
+                        'class="nested-table">\n'
                         '                        <thead>\n'
                         '                            <tr>\n'
-                        '                                <th>Vacancy</th>\n'
-                        '                                <th>Vacancy Field</th>\n'
-                        '                                <th>Score</th>\n'
-                        '                                <th>Score Percentile</th>\n'
-                        '                                <th>Resume</th>\n'
-                        '                                <th>Resume Field</th>\n'
-                        '                                <th style="width: 40%;">Message</th>\n'
+                        '                                <th>'
+                        'Vacancy</th>\n'
+                        '                                <th>'
+                        'Vacancy Field</th>\n'
+                        '                                <th>'
+                        'Score</th>\n'
+                        '                                <th>'
+                        'Score Percentile</th>\n'
+                        '                                <th>'
+                        'Resume</th>\n'
+                        '                                <th>'
+                        'Resume Field</th>\n'
+                        '                                <th '
+                        'style="width: 40%;">Message</th>\n'
                         '                            </tr>\n'
                         '                        </thead>\n'
                         '                        <tbody>\n'
                     )
-
                     for entry in protocol:
                         left = entry.get('left', '')
-                        left_field = entry.get('left_field', '')
+                        left_field = entry.get(
+                            'left_field', ''
+                        )
                         score = entry.get('score', 0)
-                        score_pct = entry.get('score_percentile', 0.0)
+                        score_pct = entry.get(
+                            'score_percentile', 0.0
+                        )
                         right = entry.get('right', '')
-                        right_field = entry.get('right_field', '')
+                        right_field = entry.get(
+                            'right_field', ''
+                        )
                         msg = entry.get('msg', '')
-
                         row_html += (
                             '                            <tr>\n'
-                            f'                                <td>{left}</td>\n'
-                            f'                                <td>{left_field}</td>\n'
-                            f'                                <td>{score}</td>\n'
-                            f'                                <td>{score_pct:.2f}</td>\n'
-                            f'                                <td>{right}</td>\n'
-                            f'                                <td>{right_field}</td>\n'
-                            f'                                <td>{msg}</td>\n'
+                            f'                                <td>'
+                            f'{left}</td>\n'
+                            f'                                <td>'
+                            f'{left_field}</td>\n'
+                            f'                                <td>'
+                            f'{score}</td>\n'
+                            f'                                <td>'
+                            f'{score_pct:.2f}</td>\n'
+                            f'                                <td>'
+                            f'{right}</td>\n'
+                            f'                                <td>'
+                            f'{right_field}</td>\n'
+                            f'                                <td>'
+                            f'{msg}</td>\n'
                             '                            </tr>\n'
                         )
-
                     row_html += (
                         '                        </tbody>\n'
                         '                    </table>\n'
                     )
                 else:
                     row_html += (
-                        '                    <h3>Skills Comparison</h3>\n'
-                        '                    <p>No scoring protocol available.</p>\n'
+                        '                    <h3>'
+                        'Skills Comparison</h3>\n'
+                        '                    <p>No scoring '
+                        'protocol available.</p>\n'
                     )
             else:
                 row_html += (
-                    '                    <h3>Skills Comparison</h3>\n'
-                    '                    <p>No estimation data available (both levels failed or missing).</p>\n'
+                    '                    <h3>'
+                    'Skills Comparison</h3>\n'
+                    '                    <p>No estimation data '
+                    'available (both levels failed or '
+                    'missing).</p>\n'
                 )
 
             # File links
@@ -933,36 +1161,50 @@ document.addEventListener('click', function(event) {
                 '                    <h3>Files</h3>\n'
                 '                    <div>\n'
             )
-
             if os.path.exists(row['json_path']):
                 p = row["json_path"].replace(chr(92), "/")
-                row_html += f'                        <a href="file:///{p}" class="file-link">📄 JSON</a>\n'
-
+                row_html += (
+                    f'                        <a href="file:///{p}" '
+                    f'class="file-link">📄 JSON</a>\n'
+                )
             if os.path.exists(row['txt_path']):
                 p = row["txt_path"].replace(chr(92), "/")
-                row_html += f'                        <a href="file:///{p}" class="file-link">📄 TXT</a>\n'
-
+                row_html += (
+                    f'                        <a href="file:///{p}" '
+                    f'class="file-link">📄 TXT</a>\n'
+                )
             if os.path.exists(row['mhtml_path']):
                 p = row["mhtml_path"].replace(chr(92), "/")
-                row_html += f'                        <a href="file:///{p}" class="file-link">📄 MHTML</a>\n'
-
+                row_html += (
+                    f'                        <a href="file:///{p}" '
+                    f'class="file-link">📄 MHTML</a>\n'
+                )
             if row.get('vacancy_url'):
                 v_url = row['vacancy_url']
-                row_html += f'                        <a href="{v_url}" class="file-link" target="_blank">🔗 Vacancy URL</a>\n'
-
+                row_html += (
+                    f'                        <a href="{v_url}" '
+                    f'class="file-link" target="_blank">'
+                    f'🔗 Vacancy URL</a>\n'
+                )
             if row.get('apply_url'):
                 a_url = row['apply_url']
-                row_html += f'                        <a href="{a_url}" class="file-link" target="_blank"> Apply URL</a>\n'
-
+                row_html += (
+                    f'                        <a href="{a_url}" '
+                    f'class="file-link" target="_blank">'
+                    f' Apply URL</a>\n'
+                )
             row_html += (
                 '                    </div>\n'
             )
 
             # Vacancy text (strip URLs)
-            clean_vacancy_text = re.sub(r'https?://\S+', '', row['vacancy_text'])
+            clean_vacancy_text = re.sub(
+                r'https?://\S+', '', row['vacancy_text']
+            )
             row_html += (
                 '                    <h3>Vacancy Text</h3>\n'
-                f'                    <div class="vacancy-text">{clean_vacancy_text}</div>\n'
+                f'                    <div class="vacancy-text">'
+                f'{clean_vacancy_text}</div>\n'
                 '                </td>\n'
                 '            </tr>\n'
             )
@@ -970,6 +1212,7 @@ document.addEventListener('click', function(event) {
             row_html_parts.append(row_html)
 
         html_parts.append("".join(row_html_parts))
+
         html_parts.append(
             '        </tbody>\n'
             '</table>\n'
