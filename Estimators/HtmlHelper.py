@@ -1,4 +1,5 @@
 class HtmlHelper:
+
     @staticmethod
     def _escape_html(value):
         return (
@@ -35,34 +36,34 @@ class HtmlHelper:
 <title>Salary Summary by Country</title>
 <style>
 body {
-font-family: Arial, sans-serif;
-margin: 20px;
-background-color: #f5f5f5;
+    font-family: Arial, sans-serif;
+    margin: 20px;
+    background-color: #f5f5f5;
 }
 table {
-border-collapse: collapse;
-background-color: white;
-box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-min-width: 800px;
+    border-collapse: collapse;
+    background-color: white;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    min-width: 800px;
 }
 th, td {
-border: 1px solid #ddd;
-padding: 8px;
-text-align: left;
+    border: 1px solid #ddd;
+    padding: 8px;
+    text-align: left;
 }
 th {
-background-color: #4CAF50;
-color: white;
+    background-color: #4CAF50;
+    color: white;
 }
 tr:nth-child(even) {
-background-color: #f9f9f9;
+    background-color: #f9f9f9;
 }
 tr:hover {
-background-color: #f1f1f1;
+    background-color: #f1f1f1;
 }
 .total-row {
-font-weight: bold;
-background-color: #e7f3fe;
+    font-weight: bold;
+    background-color: #e7f3fe;
 }
 </style>
 </head>
@@ -73,9 +74,11 @@ background-color: #e7f3fe;
         html_parts.append(
             f'<p>{HtmlHelper._escape_html(period_text)}</p>\n'
         )
+
         total_count = 0
         if total_data:
             total_count = total_data.get('count', 0)
+
         if total_count > 0 or country_rows:
             html_parts.append(
                 '<table>\n'
@@ -90,6 +93,7 @@ background-color: #e7f3fe;
                 '</thead>\n'
                 '<tbody>\n'
             )
+
             rownum = 1
             for row in country_rows:
                 usd_range = HtmlHelper._format_salary_range(
@@ -102,18 +106,20 @@ background-color: #e7f3fe;
                     row.get('avg_eur_max'),
                     '€'
                 )
+                count_str = f"{row['count']:.2f}"
                 html_parts.append(
                     '            <tr>\n'
                     f'                <td>{rownum}</td>\n'
                     f'                <td>'
                     f'{HtmlHelper._escape_html(row["country"])}'
                     f'</td>\n'
-                    f'                <td>{row["count"]}</td>\n'
+                    f'                <td>{count_str}</td>\n'
                     f'                <td>{usd_range}</td>\n'
                     f'                <td>{eur_range}</td>\n'
                     '            </tr>\n'
                 )
                 rownum += 1
+
             if total_count > 0:
                 total_usd_range = HtmlHelper._format_salary_range(
                     total_data.get('avg_usd_min'),
@@ -128,15 +134,18 @@ background-color: #e7f3fe;
             else:
                 total_usd_range = "-"
                 total_eur_range = "-"
+
+            total_count_str = f"{total_count:.2f}"
             html_parts.append(
                 '            <tr class="total-row">\n'
                 '                <td></td>\n'
                 '                <td>Total</td>\n'
-                f'                <td>{total_count}</td>\n'
+                f'                <td>{total_count_str}</td>\n'
                 f'                <td>{total_usd_range}</td>\n'
                 f'                <td>{total_eur_range}</td>\n'
                 '            </tr>\n'
             )
+
             html_parts.append(
                 '        </tbody>\n'
                 '</table>\n'
@@ -145,10 +154,12 @@ background-color: #e7f3fe;
             html_parts.append(
                 '<p>No valid salary data found for the period.</p>\n'
             )
+
         html_parts.append(
             '</body>\n'
             '</html>\n'
         )
+
         with open(filepath, 'w', encoding='utf-8') as f:
             f.write(''.join(html_parts))
 
@@ -170,33 +181,33 @@ background-color: #e7f3fe;
 <title>Missing Skills Summary</title>
 <style>
 body {
-font-family: Arial, sans-serif;
-margin: 20px;
-background-color: #f5f5f5;
+    font-family: Arial, sans-serif;
+    margin: 20px;
+    background-color: #f5f5f5;
 }
 h2 {
-margin-top: 30px;
+    margin-top: 30px;
 }
 table {
-border-collapse: collapse;
-background-color: white;
-box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-min-width: 700px;
+    border-collapse: collapse;
+    background-color: white;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    min-width: 700px;
 }
 th, td {
-border: 1px solid #ddd;
-padding: 8px;
-text-align: left;
+    border: 1px solid #ddd;
+    padding: 8px;
+    text-align: left;
 }
 th {
-background-color: #4CAF50;
-color: white;
+    background-color: #4CAF50;
+    color: white;
 }
 tr:nth-child(even) {
-background-color: #f9f9f9;
+    background-color: #f9f9f9;
 }
 tr:hover {
-background-color: #f1f1f1;
+    background-color: #f1f1f1;
 }
 </style>
 </head>
@@ -207,6 +218,7 @@ background-color: #f1f1f1;
         html_parts.append(
             f'<p>{HtmlHelper._escape_html(period_text)}</p>\n'
         )
+
         html_parts.append('<h2>Required Languages</h2>\n')
         if required_language_rows:
             html_parts.append(
@@ -240,6 +252,7 @@ background-color: #f1f1f1;
             html_parts.append(
                 '<p>No required languages found for the period.</p>\n'
             )
+
         html_parts.append('<h2>Missing Skills</h2>\n')
         if skill_rows:
             html_parts.append(
@@ -272,10 +285,12 @@ background-color: #f1f1f1;
             html_parts.append(
                 '<p>No missing skills found for the period.</p>\n'
             )
+
         html_parts.append(
             '</body>\n'
             '</html>\n'
         )
+
         with open(filepath, 'w', encoding='utf-8') as f:
             f.write(''.join(html_parts))
 
@@ -295,33 +310,33 @@ background-color: #f1f1f1;
 <title>All Skills Summary</title>
 <style>
 body {
-font-family: Arial, sans-serif;
-margin: 20px;
-background-color: #f5f5f5;
+    font-family: Arial, sans-serif;
+    margin: 20px;
+    background-color: #f5f5f5;
 }
 h2 {
-margin-top: 30px;
+    margin-top: 30px;
 }
 table {
-border-collapse: collapse;
-background-color: white;
-box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-min-width: 700px;
+    border-collapse: collapse;
+    background-color: white;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    min-width: 700px;
 }
 th, td {
-border: 1px solid #ddd;
-padding: 8px;
-text-align: left;
+    border: 1px solid #ddd;
+    padding: 8px;
+    text-align: left;
 }
 th {
-background-color: #4CAF50;
-color: white;
+    background-color: #4CAF50;
+    color: white;
 }
 tr:nth-child(even) {
-background-color: #f9f9f9;
+    background-color: #f9f9f9;
 }
 tr:hover {
-background-color: #f1f1f1;
+    background-color: #f1f1f1;
 }
 </style>
 </head>
@@ -332,6 +347,7 @@ background-color: #f1f1f1;
         html_parts.append(
             f'<p>{HtmlHelper._escape_html(period_text)}</p>\n'
         )
+
         html_parts.append('<h2>All Skills</h2>\n')
         if skill_rows:
             html_parts.append(
@@ -364,9 +380,11 @@ background-color: #f1f1f1;
             html_parts.append(
                 '<p>No skills found for the period.</p>\n'
             )
+
         html_parts.append(
             '</body>\n'
             '</html>\n'
         )
+
         with open(filepath, 'w', encoding='utf-8') as f:
             f.write(''.join(html_parts))
