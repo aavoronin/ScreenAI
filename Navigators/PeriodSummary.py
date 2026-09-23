@@ -42,16 +42,15 @@ if Language is not None:
 
 
 class PeriodSummary:
-
     @staticmethod
     def generate_period_summary(
-        navigators,
-        output_folder,
-        period_start,
-        period_end,
-        generate_country_files=True,
-        generate_missing_skills=True,
-        generate_all_skills=True
+            navigators,
+            output_folder,
+            period_start,
+            period_end,
+            generate_country_files=True,
+            generate_missing_skills=True,
+            generate_all_skills=True
     ):
         """
         Generate a period summary HTML file for vacancies parsed
@@ -75,18 +74,21 @@ class PeriodSummary:
         for nav in navigators:
             vacancies_dir = nav.get_vacancies_output_path()
             if not vacancies_dir or not os.path.exists(
-                vacancies_dir
+                    vacancies_dir
             ):
                 continue
+
             for filename in os.listdir(vacancies_dir):
                 if not filename.endswith('.json'):
                     continue
+
                 json_path = os.path.join(
                     vacancies_dir, filename
                 )
+
                 try:
                     with open(
-                        json_path, 'r', encoding='utf-8'
+                            json_path, 'r', encoding='utf-8'
                     ) as f:
                         data = json.load(f)
                 except Exception:
@@ -96,6 +98,7 @@ class PeriodSummary:
                 estimation_version = data.get(
                     'estimation_version'
                 )
+
                 try:
                     p_ver = (
                         int(parsing_version)
@@ -113,8 +116,8 @@ class PeriodSummary:
                 if p_ver != BaseVacancyEstimator.PARSING_VERSION:
                     continue
                 if (
-                    e_ver
-                    != BaseVacancyEstimator.ESTIMATION_VERSION
+                        e_ver
+                        != BaseVacancyEstimator.ESTIMATION_VERSION
                 ):
                     continue
 
@@ -141,8 +144,8 @@ class PeriodSummary:
             return
 
         if (
-            isinstance(period_start, datetime)
-            and isinstance(period_end, datetime)
+                isinstance(period_start, datetime)
+                and isinstance(period_end, datetime)
         ):
             days_covered = (period_end - period_start).days
         else:
@@ -153,9 +156,11 @@ class PeriodSummary:
             if isinstance(period_end, datetime)
             else str(period_end).replace(':', '-')
         )
+
         base_filename = (
             f"vacancies_{period_end_str}_{days_covered}_days"
         )
+
         chunk_filename = f"{base_filename}.html"
         chunk_filepath = os.path.join(
             output_folder, chunk_filename
@@ -190,6 +195,53 @@ class PeriodSummary:
         print(
             f"✅ Salary summary generated: "
             f"{salary_summary_filepath}"
+        )
+
+        # Generate short salary summary
+        min_vacancies_short = 5
+        short_salary_summary_filepath = os.path.join(
+            output_folder,
+            f"{base_filename}_SalarySummary_short.html"
+        )
+        short_country_rows = [
+            row for row in salary_data['country_rows']
+            if row.get('count', 0) >= min_vacancies_short
+        ]
+
+        short_total_count = sum(row['count'] for row in short_country_rows)
+        short_total_vacancy_count = sum(row.get('vacancy_count', 0) for row in short_country_rows)
+
+        if short_total_count > 0:
+            short_total = {
+                'count': short_total_count,
+                'vacancy_count': short_total_vacancy_count,
+                'avg_usd_min': sum(row['count'] * row['avg_usd_min'] for row in short_country_rows) / short_total_count,
+                'avg_usd_max': sum(row['count'] * row['avg_usd_max'] for row in short_country_rows) / short_total_count,
+                'avg_eur_min': sum(
+                    row['count'] * row.get('avg_eur_min', 0) for row in short_country_rows) / short_total_count,
+                'avg_eur_max': sum(
+                    row['count'] * row.get('avg_eur_max', 0) for row in short_country_rows) / short_total_count,
+            }
+        else:
+            short_total = {
+                'count': 0,
+                'vacancy_count': 0,
+                'avg_usd_min': None,
+                'avg_usd_max': None,
+                'avg_eur_min': None,
+                'avg_eur_max': None
+            }
+
+        HtmlHelper.generate_salary_summary_html(
+            short_salary_summary_filepath,
+            short_country_rows,
+            short_total,
+            period_end_str,
+            days_covered
+        )
+        print(
+            f"✅ Short salary summary generated: "
+            f"{short_salary_summary_filepath}"
         )
 
         if generate_missing_skills:
@@ -265,8 +317,8 @@ class PeriodSummary:
     def _read_vacancy_text(txt_path):
         try:
             with open(
-                txt_path, 'r', encoding='utf-8',
-                errors='ignore'
+                    txt_path, 'r', encoding='utf-8',
+                    errors='ignore'
             ) as f:
                 return f.read()
         except (IOError, OSError):
@@ -290,7 +342,7 @@ class PeriodSummary:
 
     @staticmethod
     def _add_language(
-        language, seen_languages, language_counts
+            language, seen_languages, language_counts
     ):
         if not language:
             return
@@ -332,12 +384,12 @@ class PeriodSummary:
                 candidate.language.iso_code_639_1.name.upper()
             )
             span_length = (
-                candidate.end_index - candidate.start_index
+                    candidate.end_index - candidate.start_index
             )
             if span_length <= 0:
                 continue
             language_totals[iso_code] = (
-                language_totals.get(iso_code, 0) + span_length
+                    language_totals.get(iso_code, 0) + span_length
             )
             if iso_code not in language_display_names:
                 raw_name = candidate.language.name.lower()
@@ -359,15 +411,15 @@ class PeriodSummary:
                 iso_code
             )
             if (
-                language_name
-                and language_name not in detected_languages
+                    language_name
+                    and language_name not in detected_languages
             ):
                 detected_languages.append(language_name)
         return detected_languages
 
     @staticmethod
     def _collect_missing_skills_data(
-        chunk_data, selected_files
+            chunk_data, selected_files
     ):
         known_skills = (
             BaseVacancyEstimator()._get_all_known_tech_skills()
@@ -390,7 +442,7 @@ class PeriodSummary:
             if estimation_data is None:
                 estimation_data = {}
             protocol = (
-                estimation_data.get('scoring_protocol') or []
+                    estimation_data.get('scoring_protocol') or []
             )
             seen_skills = set()
             for entry in protocol:
@@ -462,7 +514,7 @@ class PeriodSummary:
             if estimation_data is None:
                 estimation_data = {}
             protocol = (
-                estimation_data.get('scoring_protocol') or []
+                    estimation_data.get('scoring_protocol') or []
             )
             seen_skills = set()
             for entry in protocol:
@@ -502,7 +554,7 @@ class PeriodSummary:
 
     @staticmethod
     def _collect_salary_summary_data(
-        chunk_data, selected_files
+            chunk_data, selected_files
     ):
         exchange_rates_df = ExchangeRates.get_currencies()
         synonym_map, valid_canonical_names = (
@@ -530,15 +582,12 @@ class PeriodSummary:
             sal_max = json_data.get('SalaryMax')
             sal_curr = json_data.get('SalaryCurrency')
             sal_period = json_data.get('SalaryPeriod')
-
             if not sal_curr:
                 continue
-
             min_val = ChunkHelper._parse_salary_value(sal_min)
             max_val = ChunkHelper._parse_salary_value(sal_max)
             if min_val is None or max_val is None:
                 continue
-
             ann_min = ChunkHelper._convert_to_annual(
                 min_val, sal_period
             )
@@ -547,7 +596,6 @@ class PeriodSummary:
             )
             if ann_min is None or ann_max is None:
                 continue
-
             curr = sal_curr.upper().strip()
             usd_min = ChunkHelper._convert_currency(
                 ann_min,
@@ -563,12 +611,10 @@ class PeriodSummary:
             )
             if usd_min is None or usd_max is None:
                 continue
-
             # Existing salary filter: valid USD annual range
             # 15k to 300k.
             if usd_min < 15000 or usd_max >= 300000:
                 continue
-
             eur_min = ChunkHelper._convert_currency(
                 ann_min,
                 curr,
@@ -592,8 +638,8 @@ class PeriodSummary:
                 total_eur_max += eur_max
 
             country_val = (
-                json_data.get('CandidateCountry')
-                or json_data.get('EmployerCountry')
+                    json_data.get('CandidateCountry')
+                    or json_data.get('EmployerCountry')
             )
             raw_str = ChunkHelper._extract_country_str(
                 country_val
@@ -606,8 +652,8 @@ class PeriodSummary:
                         continue
                     canonical = synonym_map.get(c.lower(), c)
                     if (
-                        canonical.lower()
-                        not in valid_canonical_names
+                            canonical.lower()
+                            not in valid_canonical_names
                     ):
                         continue
                     if canonical not in countries_for_row:
@@ -620,11 +666,11 @@ class PeriodSummary:
                 else 1
             )
             fraction = 1.0 / num_countries
-
             for country in countries_for_row:
                 if country not in country_stats:
                     country_stats[country] = {
                         'count': 0,
+                        'vacancy_count': 0,
                         'usd_min': 0.0,
                         'usd_max': 0.0,
                         'eur_min': 0.0,
@@ -632,6 +678,7 @@ class PeriodSummary:
                     }
                 stats = country_stats[country]
                 stats['count'] += fraction
+                stats['vacancy_count'] += 1
                 stats['usd_min'] += usd_min * fraction
                 stats['usd_max'] += usd_max * fraction
                 if eur_min is not None:
@@ -655,12 +702,14 @@ class PeriodSummary:
                 {
                     'country': country,
                     'count': stats['count'],
+                    'vacancy_count': stats['vacancy_count'],
                     'avg_usd_min': avg_usd_min,
                     'avg_usd_max': avg_usd_max,
                     'avg_eur_min': avg_eur_min,
                     'avg_eur_max': avg_eur_max
                 }
             ))
+
         rows_for_sort.sort(
             key=lambda item: item[0], reverse=True
         )
@@ -669,6 +718,7 @@ class PeriodSummary:
         if total_count > 0:
             total = {
                 'count': total_count,
+                'vacancy_count': total_count,
                 'avg_usd_min': total_usd_min / total_count,
                 'avg_usd_max': total_usd_max / total_count,
                 'avg_eur_min': total_eur_min / total_count,
@@ -677,6 +727,7 @@ class PeriodSummary:
         else:
             total = {
                 'count': 0,
+                'vacancy_count': 0,
                 'avg_usd_min': None,
                 'avg_usd_max': None,
                 'avg_eur_min': None,

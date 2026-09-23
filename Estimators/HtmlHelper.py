@@ -1,5 +1,4 @@
 class HtmlHelper:
-
     @staticmethod
     def _escape_html(value):
         return (
@@ -106,7 +105,9 @@ tr:hover {
                     row.get('avg_eur_max'),
                     '€'
                 )
-                count_str = f"{row['count']:.2f}"
+                count_val = row.get('count', 0)
+                vacancy_count_val = row.get('vacancy_count', int(count_val))
+                count_str = f"{count_val:.2f} ({vacancy_count_val})"
                 html_parts.append(
                     '            <tr>\n'
                     f'                <td>{rownum}</td>\n'
@@ -135,7 +136,8 @@ tr:hover {
                 total_usd_range = "-"
                 total_eur_range = "-"
 
-            total_count_str = f"{total_count:.2f}"
+            total_vacancy_count_val = total_data.get('vacancy_count', int(total_count)) if total_data else 0
+            total_count_str = f"{total_count:.2f} ({total_vacancy_count_val})"
             html_parts.append(
                 '            <tr class="total-row">\n'
                 '                <td></td>\n'
