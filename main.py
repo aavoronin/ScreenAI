@@ -32,11 +32,12 @@ if __name__ == "__main__":
     OMNIPARSER_REPO_PATH = config.get_path('omniparser_repo_path')
     project_to_file_main()
 
+    # verify_gpu()
+    #test_screenshots()
+
     # Download latest exchange rates on startup
     ExchangeRates.download_exchange_rates()
 
-    # verify_gpu()
-    #test_screenshots()
     nv1 = LinkedInNavigator(OMNIPARSER_REPO_PATH)
     # nv1.group_vacancies()
     nv2 = HirifyNavigator(OMNIPARSER_REPO_PATH)
