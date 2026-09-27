@@ -7,7 +7,6 @@ from Estimators.ExchangeRates import ExchangeRates
 
 
 class ChunkHtmlHelper:
-
     @staticmethod
     def _parse_time_ago_from_text(vacancy_text):
         """
@@ -89,6 +88,7 @@ class ChunkHtmlHelper:
             time_delta_info = ChunkHtmlHelper._parse_time_ago_from_text(
                 vacancy_text
             )
+
             if time_delta_info:
                 time_delta, is_reposted = time_delta_info
                 publication_date = saved_date - time_delta
@@ -103,7 +103,7 @@ class ChunkHtmlHelper:
 
     @staticmethod
     def _format_salary_display(
-        sal_min, sal_max, sal_curr, sal_period, exchange_rates_df
+            sal_min, sal_max, sal_curr, sal_period, exchange_rates_df
     ):
         """
         Format salary display.
@@ -116,6 +116,7 @@ class ChunkHtmlHelper:
 
         min_val = ChunkHelper._parse_salary_value(sal_min)
         max_val = ChunkHelper._parse_salary_value(sal_max)
+
         if min_val is None and max_val is None:
             return ""
 
@@ -130,9 +131,12 @@ class ChunkHtmlHelper:
                 parts.append(f"{mn:,.0f}+")
             elif mx is not None:
                 parts.append(f"up to {mx:,.0f}")
+
             parts.append(currency)
+
             if period_str:
                 parts.append(f"per {period_str}")
+
             return " ".join(parts)
 
         # Line 1: Original values and period
@@ -150,6 +154,7 @@ class ChunkHtmlHelper:
         usd_max = ChunkHelper._convert_currency(
             ann_max, curr, 'USD', exchange_rates_df
         )
+
         if usd_min is not None or usd_max is not None:
             lines.append(format_range(usd_min, usd_max, 'USD', 'year'))
 
@@ -160,6 +165,7 @@ class ChunkHtmlHelper:
         eur_max = ChunkHelper._convert_currency(
             ann_max, curr, 'EUR', exchange_rates_df
         )
+
         if eur_min is not None or eur_max is not None:
             lines.append(format_range(eur_min, eur_max, 'EUR', 'year'))
 
@@ -191,11 +197,13 @@ class ChunkHtmlHelper:
 
             min_val = ChunkHelper._parse_salary_value(sal_min)
             max_val = ChunkHelper._parse_salary_value(sal_max)
+
             if min_val is None or max_val is None:
                 continue
 
             ann_min = ChunkHelper._convert_to_annual(min_val, sal_period)
             ann_max = ChunkHelper._convert_to_annual(max_val, sal_period)
+
             if ann_min is None or ann_max is None:
                 continue
 
@@ -206,6 +214,7 @@ class ChunkHtmlHelper:
             usd_max = ChunkHelper._convert_currency(
                 ann_max, curr, 'USD', exchange_rates_df
             )
+
             if usd_min is None or usd_max is None:
                 continue
 
@@ -219,16 +228,18 @@ class ChunkHtmlHelper:
                 )
 
                 country_val = (
-                    json_data.get('CandidateCountry')
-                    or json_data.get('EmployerCountry')
+                        json_data.get('CandidateCountry')
+                        or json_data.get('EmployerCountry')
                 )
                 raw_str = ChunkHelper._extract_country_str(country_val)
                 row_countries = []
+
                 if raw_str:
                     for c in raw_str.split(','):
                         c = c.strip()
                         if not c:
                             continue
+
                         canonical = synonym_map.get(c.lower(), c)
                         if canonical.lower() in valid_canonical_names:
                             if canonical not in row_countries:
@@ -239,6 +250,7 @@ class ChunkHtmlHelper:
                     len(row_countries) if row_countries else 1
                 )
                 fraction = 1.0 / num_countries
+
                 eur_min_val = (
                     eur_min if eur_min is not None else 0
                 )
@@ -272,8 +284,8 @@ class ChunkHtmlHelper:
 
     @staticmethod
     def create_html_summary(
-        chunk_filepath, chunk_data, selected_files, chunks_dir,
-        generate_country_files=True
+            chunk_filepath, chunk_data, selected_files, chunks_dir,
+            generate_country_files=True
     ):
         """
         Create an MHTML file with a summary table of vacancies.
@@ -292,6 +304,7 @@ class ChunkHtmlHelper:
             vid = v['vacancy_id']
             if vid not in chunk_data:
                 continue
+
             vacancy_data = chunk_data[vid]
             est2 = vacancy_data.get('estimation2', {})
             est1 = vacancy_data.get('estimation1', {})
@@ -311,16 +324,55 @@ class ChunkHtmlHelper:
                 score_percentile = 0.0
                 estimation_data = {}
 
+            score_l1 = (
+                est1.get('score')
+                if est1.get('model_id') is not None
+                else None
+            )
+            score_pct_l1 = (
+                est1.get('score_percentile')
+                if est1.get('model_id') is not None
+                else None
+            )
+            score_l2 = (
+                est2.get('score')
+                if est2.get('model_id') is not None
+                else None
+            )
+            score_pct_l2 = (
+                est2.get('score_percentile')
+                if est2.get('model_id') is not None
+                else None
+            )
+
+            def fmt_score(val):
+                if val is None:
+                    return ""
+                return f"{val:.2f}".rstrip('0').rstrip('.')
+
+            if score_l2 is not None and score_l1 is not None:
+                s_l2 = fmt_score(score_l2)
+                s_l1 = fmt_score(score_l1)
+                score_str = f"{s_l2} ({s_l1})"
+
+                p_l2 = fmt_score(score_pct_l2)
+                p_l1 = fmt_score(score_pct_l1)
+                score_percentile_str = f"{p_l2} ({p_l1})"
+            else:
+                score_str = fmt_score(score)
+                score_percentile_str = fmt_score(score_percentile)
+
             # Extract URLs, prioritizing estimation2 over estimation1
             est2_json = est2.get('json') or {}
             est1_json = est1.get('json') or {}
+
             vacancy_url = (
-                est2_json.get('VacancyURL')
-                or est1_json.get('VacancyURL')
+                    est2_json.get('VacancyURL')
+                    or est1_json.get('VacancyURL')
             )
             apply_url = (
-                est2_json.get('ApplyURL')
-                or est1_json.get('ApplyURL')
+                    est2_json.get('ApplyURL')
+                    or est1_json.get('ApplyURL')
             )
 
             if not vacancy_url:
@@ -356,7 +408,7 @@ class ChunkHtmlHelper:
             if os.path.exists(txt_path):
                 try:
                     with open(
-                        txt_path, 'r', encoding='utf-8'
+                            txt_path, 'r', encoding='utf-8'
                     ) as f:
                         vacancy_text = f.read()
                 except:
@@ -374,6 +426,8 @@ class ChunkHtmlHelper:
                 'vacancy_id': vid,
                 'score': score,
                 'score_percentile': score_percentile,
+                'score_str': score_str,
+                'score_percentile_str': score_percentile_str,
                 'title': vacancy_title,
                 'estimation_data': estimation_data,
                 'json_path': v['json_path'],
@@ -399,6 +453,7 @@ class ChunkHtmlHelper:
         # Save main file
         with open(html_filepath, 'w', encoding='utf-8') as f:
             f.write(html_content)
+
         print(f"✅ Created MHTML summary: {html_filepath}")
 
         if generate_country_files:
@@ -406,27 +461,31 @@ class ChunkHtmlHelper:
             synonym_map, valid_canonical_names = (
                 ChunkHelper._build_country_synonym_map()
             )
+
             country_to_rows = {}
             for row in vacancy_rows:
                 json_data = row.get(
                     'estimation_data', {}
                 ).get('json', {})
                 country_val = (
-                    json_data.get('CandidateCountry')
-                    or json_data.get('EmployerCountry')
+                        json_data.get('CandidateCountry')
+                        or json_data.get('EmployerCountry')
                 )
                 raw_str = ChunkHelper._extract_country_str(
                     country_val
                 )
+
                 if raw_str:
                     for c in raw_str.split(','):
                         c = c.strip()
                         if not c:
                             continue
+
                         canonical = synonym_map.get(c.lower(), c)
                         if canonical.lower() in valid_canonical_names:
                             if canonical not in country_to_rows:
                                 country_to_rows[canonical] = []
+
                             country_to_rows[canonical].append(row)
 
             # Extract date range from filename for country file naming
@@ -435,6 +494,7 @@ class ChunkHtmlHelper:
                 basename.replace("vacancies_", "")
                 .replace(".html", "")
             )
+
             output_dir = os.path.dirname(html_filepath)
 
             for country, country_rows in country_to_rows.items():
@@ -444,16 +504,19 @@ class ChunkHtmlHelper:
                 country_filepath = os.path.join(
                     output_dir, country_filename
                 )
+
                 country_html = (
                     ChunkHtmlHelper._generate_html_table(
                         country_rows, exchange_rates_df,
                         stats_title=country
                     )
                 )
+
                 with open(
-                    country_filepath, 'w', encoding='utf-8'
+                        country_filepath, 'w', encoding='utf-8'
                 ) as f:
                     f.write(country_html)
+
                 print(
                     f"✅ Created country summary: "
                     f"{country_filepath}"
@@ -461,7 +524,7 @@ class ChunkHtmlHelper:
 
     @staticmethod
     def _generate_html_table(
-        vacancy_rows, exchange_rates_df, stats_title="Global"
+            vacancy_rows, exchange_rates_df, stats_title="Global"
     ):
         """Generate HTML table with collapsible sections and country filter."""
         synonym_map, valid_canonical_names = (
@@ -474,6 +537,7 @@ class ChunkHtmlHelper:
                 vacancy_rows, exchange_rates_df
             )
         )
+
         # Use fractional count so multi-country vacancies
         # contribute proportionally
         count = sum(
@@ -491,6 +555,7 @@ class ChunkHtmlHelper:
         sum_eur_max = sum(
             q['eurMax'] for q in qualified_salaries
         )
+
         avg_usd_min = sum_usd_min / count if count > 0 else 0
         avg_usd_max = sum_usd_max / count if count > 0 else 0
         avg_eur_min = sum_eur_min / count if count > 0 else 0
@@ -498,7 +563,7 @@ class ChunkHtmlHelper:
 
         stats_html = f"""
 <div id="salaryStatsBlock" style="margin: 10px 0 20px 0; padding: 15px; background-color: #e7f3fe; border-left: 6px solid #2196F3; font-family: Arial, sans-serif;">
-<h3 style="margin-top: 0; color: #2196F3;">Salary Statistics ({stats_title})</h3>
+    <h3 style="margin-top: 0; color: #2196F3;">Salary Statistics ({stats_title})</h3>
 """
         if count == 0:
             stats_html += (
@@ -522,6 +587,7 @@ class ChunkHtmlHelper:
                 f'<strong>Avg EUR Max:</strong> '
                 f'€{avg_eur_max:,.0f}</p>\n'
             )
+
         stats_html += "</div>\n"
 
         # Collect distinct countries for filter
@@ -531,22 +597,25 @@ class ChunkHtmlHelper:
                 'estimation_data', {}
             ).get('json', {})
             country_val = (
-                json_data.get('CandidateCountry')
-                or json_data.get('EmployerCountry')
+                    json_data.get('CandidateCountry')
+                    or json_data.get('EmployerCountry')
             )
             raw_str = ChunkHelper._extract_country_str(
                 country_val
             )
+
             if raw_str:
                 for c in raw_str.split(','):
                     c = c.strip()
                     if not c:
                         continue
+
                     canonical = synonym_map.get(c.lower(), c)
                     if canonical.lower() in valid_canonical_names:
                         distinct_countries.add(canonical)
 
         sorted_countries = sorted(list(distinct_countries))
+
         escaped_stats_title = (
             stats_title.replace('"', '\\"')
             .replace("'", "\\'")
@@ -556,357 +625,369 @@ class ChunkHtmlHelper:
         html_parts = ["""<!DOCTYPE html>
 <html>
 <head>
-<meta charset="UTF-8">
-<title>Vacancy Estimation Summary</title>
-<style>
-body {
-    font-family: Arial, sans-serif;
-    margin: 20px;
-    background-color: #f5f5f5;
-    overflow-x: hidden;
-}
-table {
-    width: 100%;
-    border-collapse: collapse;
-    background-color: white;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-    table-layout: fixed;
-    word-wrap: break-word;
-}
-th, td {
-    border: 1px solid #ddd;
-    padding: 8px;
-    text-align: left;
-    word-wrap: break-word;
-    overflow-wrap: break-word;
-}
-th {
-    background-color: #4CAF50;
-    color: white;
-    font-weight: bold;
-}
-tr:nth-child(even) {
-    background-color: #f9f9f9;
-}
-tr:hover {
-    background-color: #f1f1f1;
-}
-.collapse-btn {
-    background-color: #4CAF50;
-    color: white;
-    border: none;
-    padding: 4px 8px;
-    cursor: pointer;
-    border-radius: 3px;
-    font-size: 12px;
-}
-.collapse-btn:hover {
-    background-color: #45a049;
-}
-.collapsible-section {
-    display: none;
-    background-color: #fafafa;
-}
-.collapsible-section.show {
-    display: table-row;
-}
-.nested-table {
-    width: 100%;
-    margin: 10px 0;
-    font-size: 12px;
-    table-layout: fixed;
-    word-wrap: break-word;
-}
-.nested-table th, .nested-table td {
-    border: 1px solid #ccc;
-    padding: 4px;
-    word-wrap: break-word;
-    overflow-wrap: break-word;
-}
-.nested-table th {
-    background-color: #e0e0e0;
-}
-.file-link {
-    color: #0066cc;
-    text-decoration: none;
-    margin-right: 10px;
-}
-.file-link:hover {
-    text-decoration: underline;
-}
-.disabled-link {
-    color: gray;
-    pointer-events: none;
-    cursor: default;
-    text-decoration: none;
-    margin-right: 10px;
-}
-.vacancy-text {
-    margin-top: 10px;
-    padding: 10px;
-    background-color: white;
-    border: 1px solid #ddd;
-    max-height: 200px;
-    overflow-y: auto;
-    overflow-x: auto;
-    white-space: pre-wrap;
-    word-wrap: break-word;
-    font-size: 11px;
-    max-width: 100%;
-    box-sizing: border-box;
-}
-.country-filter-container {
-    margin: 10px 0 20px 0;
-    padding: 10px;
-    background-color: white;
-    border: 1px solid #ddd;
-    border-radius: 4px;
-    position: relative;
-}
-.country-filter-btn {
-    background-color: #4CAF50;
-    color: white;
-    border: none;
-    padding: 8px 16px;
-    cursor: pointer;
-    border-radius: 4px;
-    font-size: 14px;
-    min-width: 200px;
-    text-align: left;
-}
-.country-filter-btn:hover {
-    background-color: #45a049;
-}
-.country-dropdown {
-    display: none;
-    position: absolute;
-    top: 100%;
-    left: 0;
-    background-color: white;
-    border: 1px solid #ddd;
-    border-radius: 4px;
-    max-height: 300px;
-    overflow-y: auto;
-    z-index: 1000;
-    min-width: 250px;
-    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
-}
-.country-dropdown label {
-    display: block;
-    padding: 6px 12px;
-    cursor: pointer;
-}
-.country-dropdown label:hover {
-    background-color: #f1f1f1;
-}
-.country-dropdown input[type="checkbox"] {
-    margin-right: 8px;
-}
-.filter-actions {
-    padding: 6px 12px;
-    border-bottom: 1px solid #ddd;
-    background-color: #f9f9f9;
-}
-.filter-actions button {
-    background-color: #4CAF50;
-    color: white;
-    border: none;
-    padding: 4px 8px;
-    cursor: pointer;
-    border-radius: 3px;
-    font-size: 12px;
-    margin-right: 4px;
-}
-.filter-actions button:hover {
-    background-color: #45a049;
-}
-</style>
-<script>
-var currentStatsTitle = \"""" + escaped_stats_title + """\";
-var qualifiedSalaries = """ + qualified_salaries_json + """;
+    <meta charset="UTF-8">
+    <title>Vacancy Estimation Summary</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f5f5f5;
+            overflow-x: hidden;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background-color: white;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            table-layout: fixed;
+            word-wrap: break-word;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+            word-wrap: break-word;
+            overflow-wrap: break-word;
+        }
+        th {
+            background-color: #4CAF50;
+            color: white;
+            font-weight: bold;
+        }
+        tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
+        tr:hover {
+            background-color: #f1f1f1;
+        }
+        .collapse-btn {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            padding: 4px 8px;
+            cursor: pointer;
+            border-radius: 3px;
+            font-size: 12px;
+        }
+        .collapse-btn:hover {
+            background-color: #45a049;
+        }
+        .collapsible-section {
+            display: none;
+            background-color: #fafafa;
+        }
+        .collapsible-section.show {
+            display: table-row;
+        }
+        .nested-table {
+            width: 100%;
+            margin: 10px 0;
+            font-size: 12px;
+            table-layout: fixed;
+            word-wrap: break-word;
+        }
+        .nested-table th, .nested-table td {
+            border: 1px solid #ccc;
+            padding: 4px;
+            word-wrap: break-word;
+            overflow-wrap: break-word;
+        }
+        .nested-table th {
+            background-color: #e0e0e0;
+        }
+        .file-link {
+            color: #0066cc;
+            text-decoration: none;
+            margin-right: 10px;
+        }
+        .file-link:hover {
+            text-decoration: underline;
+        }
+        .disabled-link {
+            color: gray;
+            pointer-events: none;
+            cursor: default;
+            text-decoration: none;
+            margin-right: 10px;
+        }
+        .vacancy-text {
+            margin-top: 10px;
+            padding: 10px;
+            background-color: white;
+            border: 1px solid #ddd;
+            max-height: 200px;
+            overflow-y: auto;
+            overflow-x: auto;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            font-size: 11px;
+            max-width: 100%;
+            box-sizing: border-box;
+        }
+        .country-filter-container {
+            margin: 10px 0 20px 0;
+            padding: 10px;
+            background-color: white;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            position: relative;
+        }
+        .country-filter-btn {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            cursor: pointer;
+            border-radius: 4px;
+            font-size: 14px;
+            min-width: 200px;
+            text-align: left;
+        }
+        .country-filter-btn:hover {
+            background-color: #45a049;
+        }
+        .country-dropdown {
+            display: none;
+            position: absolute;
+            top: 100%;
+            left: 0;
+            background-color: white;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            max-height: 300px;
+            overflow-y: auto;
+            z-index: 1000;
+            min-width: 250px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        .country-dropdown label {
+            display: block;
+            padding: 6px 12px;
+            cursor: pointer;
+        }
+        .country-dropdown label:hover {
+            background-color: #f1f1f1;
+        }
+        .country-dropdown input[type="checkbox"] {
+            margin-right: 8px;
+        }
+        .filter-actions {
+            padding: 6px 12px;
+            border-bottom: 1px solid #ddd;
+            background-color: #f9f9f9;
+        }
+        .filter-actions button {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            padding: 4px 8px;
+            cursor: pointer;
+            border-radius: 3px;
+            font-size: 12px;
+            margin-right: 4px;
+        }
+        .filter-actions button:hover {
+            background-color: #45a049;
+        }
+    </style>
+    <script>
+        var currentStatsTitle = \"""" + escaped_stats_title + """\";
+        var qualifiedSalaries = """ + qualified_salaries_json + """;
 
-function toggleSection(btn) {
-    var section = btn.parentElement.parentElement.nextElementSibling;
-    if (section.classList.contains('show')) {
-        section.classList.remove('show');
-        btn.textContent = '[+]';
-    } else {
-        section.classList.add('show');
-        btn.textContent = '[-]';
-    }
-}
+        function toggleSection(btn) {
+            var section = btn.parentElement.parentElement.nextElementSibling;
+            if (section.classList.contains('show')) {
+                section.classList.remove('show');
+                btn.textContent = '[+]';
+            } else {
+                section.classList.add('show');
+                btn.textContent = '[-]';
+            }
+        }
 
-function recalculateSalary(selectedCountries) {
-    var count = 0;
-    var sumUsdMin = 0, sumUsdMax = 0;
-    var sumEurMin = 0, sumEurMax = 0;
-    var checkboxes = document.querySelectorAll(
-        '#countryDropdown input[type="checkbox"][data-country]'
-    );
-    var useAll = selectedCountries.length === 0
-        || selectedCountries.length === checkboxes.length;
+        function recalculateSalary(selectedCountries) {
+            var count = 0;
+            var sumUsdMin = 0, sumUsdMax = 0;
+            var sumEurMin = 0, sumEurMax = 0;
 
-    qualifiedSalaries.forEach(function(q) {
-        var match = false;
-        if (useAll) {
-            match = true;
-        } else {
-            for (var i = 0; i < selectedCountries.length; i++) {
-                if (q.countries.indexOf(
-                    selectedCountries[i]
-                ) !== -1) {
+            var checkboxes = document.querySelectorAll(
+                '#countryDropdown input[type="checkbox"][data-country]'
+            );
+
+            var useAll = selectedCountries.length === 0
+                || selectedCountries.length === checkboxes.length;
+
+            qualifiedSalaries.forEach(function(q) {
+                var match = false;
+                if (useAll) {
                     match = true;
-                    break;
+                } else {
+                    for (var i = 0; i < selectedCountries.length; i++) {
+                        if (q.countries.indexOf(
+                            selectedCountries[i]
+                        ) !== -1) {
+                            match = true;
+                            break;
+                        }
+                    }
                 }
+
+                if (match) {
+                    count += (q.fraction || 1.0);
+                    sumUsdMin += q.usdMin;
+                    sumUsdMax += q.usdMax;
+                    sumEurMin += q.eurMin;
+                    sumEurMax += q.eurMax;
+                }
+            });
+
+            var statsDiv = document.getElementById('salaryStatsBlock');
+            var html = '<h3 style="margin-top: 0; color: #2196F3;">'
+                + 'Salary Statistics (' + currentStatsTitle + ')</h3>';
+
+            if (count === 0) {
+                html += '<p style="margin: 5px 0;">'
+                    + '<strong>No data</strong></p>';
+            } else {
+                var avgUsdMin = sumUsdMin / count;
+                var avgUsdMax = sumUsdMax / count;
+                var avgEurMin = sumEurMin / count;
+                var avgEurMax = sumEurMax / count;
+
+                html += '<p style="margin: 5px 0;">'
+                    + '<strong>Vacancies in range '
+                    + '(15k - 300k USD/year):</strong> '
+                    + count.toFixed(1) + '</p>';
+
+                html += '<p style="margin: 5px 0;">'
+                    + '<strong>Avg USD Min:</strong> $'
+                    + avgUsdMin.toLocaleString('en-US',
+                        {maximumFractionDigits: 0})
+                    + ' | <strong>Avg USD Max:</strong> $'
+                    + avgUsdMax.toLocaleString('en-US',
+                        {maximumFractionDigits: 0}) + '</p>';
+
+                html += '<p style="margin: 5px 0;">'
+                    + '<strong>Avg EUR Min:</strong> €'
+                    + avgEurMin.toLocaleString('en-US',
+                        {maximumFractionDigits: 0})
+                    + ' | <strong>Avg EUR Max:</strong> €'
+                    + avgEurMax.toLocaleString('en-US',
+                        {maximumFractionDigits: 0}) + '</p>';
             }
+
+            statsDiv.innerHTML = html;
         }
-        if (match) {
-            count += (q.fraction || 1.0);
-            sumUsdMin += q.usdMin;
-            sumUsdMax += q.usdMax;
-            sumEurMin += q.eurMin;
-            sumEurMax += q.eurMax;
+
+        function toggleCountryDropdown() {
+            var dropdown = document.getElementById('countryDropdown');
+            dropdown.style.display =
+                dropdown.style.display === 'block' ? 'none' : 'block';
         }
-    });
 
-    var statsDiv = document.getElementById('salaryStatsBlock');
-    var html = '<h3 style="margin-top: 0; color: #2196F3;">'
-        + 'Salary Statistics (' + currentStatsTitle + ')</h3>';
-    if (count === 0) {
-        html += '<p style="margin: 5px 0;">'
-            + '<strong>No data</strong></p>';
-    } else {
-        var avgUsdMin = sumUsdMin / count;
-        var avgUsdMax = sumUsdMax / count;
-        var avgEurMin = sumEurMin / count;
-        var avgEurMax = sumEurMax / count;
-        html += '<p style="margin: 5px 0;">'
-            + '<strong>Vacancies in range '
-            + '(15k - 300k USD/year):</strong> '
-            + count.toFixed(1) + '</p>';
-        html += '<p style="margin: 5px 0;">'
-            + '<strong>Avg USD Min:</strong> $'
-            + avgUsdMin.toLocaleString('en-US',
-                {maximumFractionDigits: 0})
-            + ' | <strong>Avg USD Max:</strong> $'
-            + avgUsdMax.toLocaleString('en-US',
-                {maximumFractionDigits: 0}) + '</p>';
-        html += '<p style="margin: 5px 0;">'
-            + '<strong>Avg EUR Min:</strong> €'
-            + avgEurMin.toLocaleString('en-US',
-                {maximumFractionDigits: 0})
-            + ' | <strong>Avg EUR Max:</strong> €'
-            + avgEurMax.toLocaleString('en-US',
-                {maximumFractionDigits: 0}) + '</p>';
-    }
-    statsDiv.innerHTML = html;
-}
-
-function toggleCountryDropdown() {
-    var dropdown = document.getElementById('countryDropdown');
-    dropdown.style.display =
-        dropdown.style.display === 'block' ? 'none' : 'block';
-}
-
-function selectAllCountries() {
-    var checkboxes = document.querySelectorAll(
-        '#countryDropdown input[type="checkbox"]'
-    );
-    checkboxes.forEach(function(cb) {
-        cb.checked = true;
-    });
-    filterByCountry();
-}
-
-function deselectAllCountries() {
-    var checkboxes = document.querySelectorAll(
-        '#countryDropdown input[type="checkbox"]'
-    );
-    checkboxes.forEach(function(cb) {
-        cb.checked = false;
-    });
-    filterByCountry();
-}
-
-function filterByCountry() {
-    var checkboxes = document.querySelectorAll(
-        '#countryDropdown input[type="checkbox"][data-country]'
-    );
-    var selected = [];
-    checkboxes.forEach(function(cb) {
-        if (cb.checked) {
-            selected.push(cb.getAttribute('data-country'));
+        function selectAllCountries() {
+            var checkboxes = document.querySelectorAll(
+                '#countryDropdown input[type="checkbox"]'
+            );
+            checkboxes.forEach(function(cb) {
+                cb.checked = true;
+            });
+            filterByCountry();
         }
-    });
 
-    // Update label
-    var label = document.getElementById('countryFilterLabel');
-    if (selected.length === 0
-        || selected.length === checkboxes.length) {
-        label.textContent = 'All Countries ('
-            + checkboxes.length + ')';
-    } else {
-        label.textContent = selected.join(', ');
-    }
+        function deselectAllCountries() {
+            var checkboxes = document.querySelectorAll(
+                '#countryDropdown input[type="checkbox"]'
+            );
+            checkboxes.forEach(function(cb) {
+                cb.checked = false;
+            });
+            filterByCountry();
+        }
 
-    // Filter rows
-    var rows = document.querySelectorAll('tr.main-row');
-    rows.forEach(function(row) {
-        var rowCountries = row.getAttribute('data-countries');
-        var nextRow = row.nextElementSibling;
-        var show = false;
-        if (selected.length === 0
-            || selected.length === checkboxes.length) {
-            show = true;
-        } else {
-            var rowCountryList = rowCountries
-                ? rowCountries.split('|') : [];
-            for (var i = 0; i < selected.length; i++) {
-                if (rowCountryList.indexOf(
-                    selected[i]
-                ) !== -1) {
+        function filterByCountry() {
+            var checkboxes = document.querySelectorAll(
+                '#countryDropdown input[type="checkbox"][data-country]'
+            );
+            var selected = [];
+
+            checkboxes.forEach(function(cb) {
+                if (cb.checked) {
+                    selected.push(cb.getAttribute('data-country'));
+                }
+            });
+
+            // Update label
+            var label = document.getElementById('countryFilterLabel');
+            if (selected.length === 0
+                || selected.length === checkboxes.length) {
+                label.textContent = 'All Countries ('
+                    + checkboxes.length + ')';
+            } else {
+                label.textContent = selected.join(', ');
+            }
+
+            // Filter rows
+            var rows = document.querySelectorAll('tr.main-row');
+            rows.forEach(function(row) {
+                var rowCountries = row.getAttribute('data-countries');
+                var nextRow = row.nextElementSibling;
+                var show = false;
+
+                if (selected.length === 0
+                    || selected.length === checkboxes.length) {
                     show = true;
-                    break;
+                } else {
+                    var rowCountryList = rowCountries
+                        ? rowCountries.split('|') : [];
+
+                    for (var i = 0; i < selected.length; i++) {
+                        if (rowCountryList.indexOf(
+                            selected[i]
+                        ) !== -1) {
+                            show = true;
+                            break;
+                        }
+                    }
+                }
+
+                if (show) {
+                    row.style.display = '';
+                    if (nextRow
+                        && nextRow.classList.contains(
+                            'collapsible-section')) {
+                        nextRow.style.display = '';
+                    }
+                } else {
+                    row.style.display = 'none';
+                    if (nextRow
+                        && nextRow.classList.contains(
+                            'collapsible-section')) {
+                        nextRow.style.display = 'none';
+                        nextRow.classList.remove('show');
+                    }
+                }
+            });
+
+            recalculateSalary(selected);
+        }
+
+        // Close dropdown when clicking outside
+        document.addEventListener('click', function(event) {
+            var container = document.querySelector(
+                '.country-filter-container'
+            );
+            if (container && !container.contains(event.target)) {
+                var dropdown = document.getElementById('countryDropdown');
+                if (dropdown) {
+                    dropdown.style.display = 'none';
                 }
             }
-        }
-        if (show) {
-            row.style.display = '';
-            if (nextRow
-                && nextRow.classList.contains(
-                    'collapsible-section')) {
-                nextRow.style.display = '';
-            }
-        } else {
-            row.style.display = 'none';
-            if (nextRow
-                && nextRow.classList.contains(
-                    'collapsible-section')) {
-                nextRow.style.display = 'none';
-                nextRow.classList.remove('show');
-            }
-        }
-    });
-
-    recalculateSalary(selected);
-}
-
-// Close dropdown when clicking outside
-document.addEventListener('click', function(event) {
-    var container = document.querySelector(
-        '.country-filter-container'
-    );
-    if (container && !container.contains(event.target)) {
-        var dropdown = document.getElementById('countryDropdown');
-        if (dropdown) {
-            dropdown.style.display = 'none';
-        }
-    }
-});
-</script>
+        });
+    </script>
 </head>
 <body>
-<h1>Vacancy Estimation Summary</h1>
+    <h1>Vacancy Estimation Summary</h1>
 """]
 
         # Insert stats block
@@ -976,22 +1057,25 @@ document.addEventListener('click', function(event) {
                 'estimation_data', {}
             ).get('json', {})
             country_val = (
-                json_data.get('CandidateCountry')
-                or json_data.get('EmployerCountry')
+                    json_data.get('CandidateCountry')
+                    or json_data.get('EmployerCountry')
             )
             raw_str = ChunkHelper._extract_country_str(
                 country_val
             )
+
             mapped_countries = []
             if raw_str:
                 for c in raw_str.split(','):
                     c = c.strip()
                     if not c:
                         continue
+
                     canonical = synonym_map.get(c.lower(), c)
                     if canonical.lower() in valid_canonical_names:
                         if canonical not in mapped_countries:
                             mapped_countries.append(canonical)
+
             country_str = ", ".join(mapped_countries)
 
             # Build data-countries attribute for filtering
@@ -1001,8 +1085,10 @@ document.addEventListener('click', function(event) {
             title = row.get('title', '')
             emp_type = json_data.get('EmploymentType')
             extras = []
+
             if emp_type:
                 extras.append(str(emp_type).strip())
+
             if extras:
                 display_title = (
                     f"{title} ({', '.join(extras)})"
@@ -1013,6 +1099,7 @@ document.addEventListener('click', function(event) {
             # Format date
             publication_date = row.get('publication_date', '')
             is_reposted = row.get('is_reposted', False)
+
             if publication_date:
                 if is_reposted:
                     date_display = (
@@ -1028,6 +1115,7 @@ document.addEventListener('click', function(event) {
             sal_max = json_data.get('SalaryMax', '')
             sal_curr = json_data.get('SalaryCurrency', '')
             sal_period = json_data.get('SalaryPeriod', '')
+
             salary_html = (
                 ChunkHtmlHelper._format_salary_display(
                     sal_min, sal_max, sal_curr, sal_period,
@@ -1036,11 +1124,13 @@ document.addEventListener('click', function(event) {
             )
 
             # Main row
-            score_str = (
+            score_str = row.get(
+                'score_str',
                 f"{row['score']:.2f}"
                 .rstrip('0').rstrip('.')
             )
-            score_percentile_str = (
+            score_percentile_str = row.get(
+                'score_percentile_str',
                 f"{row['score_percentile']:.2f}"
                 .rstrip('0').rstrip('.')
             )
@@ -1078,6 +1168,7 @@ document.addEventListener('click', function(event) {
                 protocol = estimation_data.get(
                     'scoring_protocol', []
                 )
+
                 if protocol:
                     row_html += (
                         '                    <h3>'
@@ -1104,6 +1195,7 @@ document.addEventListener('click', function(event) {
                         '                        </thead>\n'
                         '                        <tbody>\n'
                     )
+
                     for entry in protocol:
                         left = entry.get('left', '')
                         left_field = entry.get(
@@ -1118,6 +1210,7 @@ document.addEventListener('click', function(event) {
                             'right_field', ''
                         )
                         msg = entry.get('msg', '')
+
                         row_html += (
                             '                            <tr>\n'
                             f'                                <td>'
@@ -1136,6 +1229,7 @@ document.addEventListener('click', function(event) {
                             f'{msg}</td>\n'
                             '                            </tr>\n'
                         )
+
                     row_html += (
                         '                        </tbody>\n'
                         '                    </table>\n'
@@ -1161,24 +1255,28 @@ document.addEventListener('click', function(event) {
                 '                    <h3>Files</h3>\n'
                 '                    <div>\n'
             )
+
             if os.path.exists(row['json_path']):
                 p = row["json_path"].replace(chr(92), "/")
                 row_html += (
                     f'                        <a href="file:///{p}" '
                     f'class="file-link">📄 JSON</a>\n'
                 )
+
             if os.path.exists(row['txt_path']):
                 p = row["txt_path"].replace(chr(92), "/")
                 row_html += (
                     f'                        <a href="file:///{p}" '
                     f'class="file-link">📄 TXT</a>\n'
                 )
+
             if os.path.exists(row['mhtml_path']):
                 p = row["mhtml_path"].replace(chr(92), "/")
                 row_html += (
                     f'                        <a href="file:///{p}" '
                     f'class="file-link">📄 MHTML</a>\n'
                 )
+
             if row.get('vacancy_url'):
                 v_url = row['vacancy_url']
                 row_html += (
@@ -1186,6 +1284,7 @@ document.addEventListener('click', function(event) {
                     f'class="file-link" target="_blank">'
                     f'🔗 Vacancy URL</a>\n'
                 )
+
             if row.get('apply_url'):
                 a_url = row['apply_url']
                 row_html += (
@@ -1193,6 +1292,7 @@ document.addEventListener('click', function(event) {
                     f'class="file-link" target="_blank">'
                     f' Apply URL</a>\n'
                 )
+
             row_html += (
                 '                    </div>\n'
             )
@@ -1201,6 +1301,7 @@ document.addEventListener('click', function(event) {
             clean_vacancy_text = re.sub(
                 r'https?://\S+', '', row['vacancy_text']
             )
+
             row_html += (
                 '                    <h3>Vacancy Text</h3>\n'
                 f'                    <div class="vacancy-text">'

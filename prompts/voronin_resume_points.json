@@ -297,7 +297,8 @@
     "ROLAP",
     "In-Memory Tables",
     "Columnstore Indexes",
-    "ci/cd"
+    "ci/cd",
+    "git"
   ],
   "required": [
     "MySQL",

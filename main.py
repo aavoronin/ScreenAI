@@ -11,7 +11,7 @@ import torch
 from llama_cpp import llama_supports_gpu_offload
 from Screen.TestScreenshots import test_screenshots
 from cfg.cfg import Config
-
+from ai_clients.start_server import start_wsl_server, stop_wsl_server
 
 def verify_gpu():
     print("=" * 60)
@@ -30,6 +30,7 @@ if __name__ == "__main__":
     # time.sleep(3600 * 4)
     config = Config()
     OMNIPARSER_REPO_PATH = config.get_path('omniparser_repo_path')
+    stop_wsl_server()
     project_to_file_main()
 
     # verify_gpu()
