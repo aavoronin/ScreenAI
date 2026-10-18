@@ -298,7 +298,9 @@
     "In-Memory Tables",
     "Columnstore Indexes",
     "ci/cd",
-    "git"
+    "git",
+    "relational databases",
+    "soap"
   ],
   "required": [
     "MySQL",
@@ -312,7 +314,8 @@
     "Matplotlib",
     "Seaborn",
     "PySpark",
-    "Airflow"
+    "Airflow",
+    "microsoft fabric"
   ],
   "nice-to-have": [
     "JavaScript",
@@ -367,7 +370,8 @@
     "Pipeline",
     "AI Agents",
     "ML Flow",
-    "MS Foundry"
+    "MS Foundry",
+    "agile"
   ],
   "unwanted": [
     "MLOps",

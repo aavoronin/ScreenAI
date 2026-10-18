@@ -40,11 +40,13 @@
         "Norway",
         "Sweden",
         "Serbia",
-        "Lithuania",
         "Cyprus",
         "Argentina",
+        "Brazil",
         "Japan",
+        "Lithuania",
         "Latvia",
+        "Estonia",
         "Hong Kong"
       ],
       "days": [3, 10],
@@ -109,12 +111,17 @@
         "Russia",
         "London", "Dublin", "Madrid", "Lisbon", "South Africa",
         "Turkey", "UAE", "Cyprus",
+        "Argentina",
+        "Brazil",
         "Yerevan", "Tbilisi", "Batumi", "Belgrade",
         "San Diego, California",
         "Los Angeles, California",
         "Tampa, Florida",
         "Clearwater, Florida",
-        "Copenhagen, Denmark"
+        "Copenhagen, Denmark",
+        "Lithuania",
+        "Latvia",
+        "Estonia"
       ],
       "days": [10],
       "frequency": 1
@@ -129,7 +136,13 @@
         "Los Angeles, California",
         "Tampa, Florida",
         "Clearwater, Florida",
-        "Copenhagen, Denmark"
+        "Copenhagen, Denmark",
+        "Lithuania",
+        "Latvia",
+        "Estonia",
+        "Cyprus",
+        "Argentina",
+        "Brazil"
       ],
       "days": [10],
       "frequency": 1
